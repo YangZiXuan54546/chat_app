@@ -46,12 +46,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // 确保已连接
       if (!chatService.isConnected) {
         setState(() {
-          _error = '未连接到服务器';
+          _error = '未连接到服务器，请先配置服务器地址';
+          _isLoading = false;
         });
         return;
       }
       
-      chatService.register(
+      final success = await chatService.register(
         _usernameController.text,
         _passwordController.text,
         _nicknameController.text.isEmpty 
@@ -59,12 +60,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           : _nicknameController.text,
       );
       
-      // 等待注册结果
-      await Future.delayed(const Duration(seconds: 1));
-      
-      setState(() {
-        _success = true;
-      });
+      if (success) {
+        setState(() {
+          _success = true;
+        });
+      } else {
+        setState(() {
+          _error = chatService.registerError ?? '注册失败';
+        });
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();

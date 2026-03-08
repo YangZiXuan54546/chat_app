@@ -80,6 +80,9 @@ int main(int argc, char* argv[]) {
     // 创建服务器
     g_server = std::make_shared<chat::Server>(server_config);
     
+    // 设置服务器的管理器
+    g_server->set_managers(user_manager, message_manager, group_manager, friend_manager, database);
+    
     // 设置管理器
     message_manager->set_server(g_server);
     group_manager->set_server(g_server);

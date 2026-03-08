@@ -94,6 +94,8 @@ void Server::do_accept() {
 
 void Server::handle_accept(Session::ptr session, const asio::error_code& ec) {
     if (!ec) {
+        // 设置管理器
+        session->set_managers(user_manager_, message_manager_, group_manager_, friend_manager_, database_);
         session->start();
         add_session(session);
     }
@@ -187,6 +189,18 @@ std::vector<uint64_t> Server::get_online_users() {
         }
     }
     return users;
+}
+
+void Server::set_managers(std::shared_ptr<UserManager> user_manager,
+                          std::shared_ptr<MessageManager> message_manager,
+                          std::shared_ptr<GroupManager> group_manager,
+                          std::shared_ptr<FriendManager> friend_manager,
+                          std::shared_ptr<Database> database) {
+    user_manager_ = user_manager;
+    message_manager_ = message_manager;
+    group_manager_ = group_manager;
+    friend_manager_ = friend_manager;
+    database_ = database;
 }
 
 void Server::check_heartbeats() {

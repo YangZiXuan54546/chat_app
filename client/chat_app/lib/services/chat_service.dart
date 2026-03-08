@@ -10,6 +10,11 @@ class ChatService extends ChangeNotifier {
   bool _isConnected = false;
   bool _isAuthenticated = false;
   
+  // 注册状态
+  bool _registerSuccess = false;
+  String? _registerError;
+  int? _registeredUserId;
+  
   final Map<int, User> _users = {};
   final Map<int, Group> _groups = {};
   final Map<int, List<Message>> _messages = {}; // key: peerId or -groupId
@@ -20,6 +25,9 @@ class ChatService extends ChangeNotifier {
   User? get currentUser => _currentUser;
   bool get isConnected => _isConnected;
   bool get isAuthenticated => _isAuthenticated;
+  bool get registerSuccess => _registerSuccess;
+  String? get registerError => _registerError;
+  int? get registeredUserId => _registeredUserId;
   List<Friend> get friends => _friends;
   List<Friend> get friendRequests => _friendRequests;
   List<Conversation> get conversations => _conversations;
@@ -83,12 +91,28 @@ class ChatService extends ChangeNotifier {
   }
 
   /// 注册
-  void register(String username, String password, String nickname) {
+  Future<bool> register(String username, String password, String nickname) async {
+    // 重置状态
+    _registerSuccess = false;
+    _registerError = null;
+    _registeredUserId = null;
+    
     _network.send(MessageType.register, {
       'username': username,
       'password': password,
       'nickname': nickname,
     });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_registerSuccess || _registerError != null) {
+        return _registerSuccess;
+      }
+    }
+    
+    _registerError = 'Registration timeout';
+    return false;
   }
 
   /// 登录
@@ -127,6 +151,18 @@ class ChatService extends ChangeNotifier {
 
   /// 处理注册响应
   void _handleRegisterResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      _registerSuccess = true;
+      _registerError = null;
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        _registeredUserId = data['user_id'] as int?;
+      }
+    } else {
+      _registerSuccess = false;
+      _registerError = body['message'] as String? ?? 'Registration failed';
+    }
     notifyListeners();
   }
 

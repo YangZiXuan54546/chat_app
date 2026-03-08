@@ -11,6 +11,13 @@
 
 namespace chat {
 
+// 前向声明
+class UserManager;
+class MessageManager;
+class GroupManager;
+class FriendManager;
+class Database;
+
 class Server {
 public:
     using IOContext = asio::io_context;
@@ -49,6 +56,13 @@ public:
     // 获取在线用户列表
     std::vector<uint64_t> get_online_users();
     
+    // 设置管理器
+    void set_managers(std::shared_ptr<UserManager> user_manager,
+                      std::shared_ptr<MessageManager> message_manager,
+                      std::shared_ptr<GroupManager> group_manager,
+                      std::shared_ptr<FriendManager> friend_manager,
+                      std::shared_ptr<Database> database);
+    
 private:
     void do_accept();
     void handle_accept(Session::ptr session, const asio::error_code& ec);
@@ -67,6 +81,13 @@ private:
     std::vector<std::thread> threads_;
     
     asio::steady_timer heartbeat_timer_;
+    
+    // 管理器
+    std::shared_ptr<UserManager> user_manager_;
+    std::shared_ptr<MessageManager> message_manager_;
+    std::shared_ptr<GroupManager> group_manager_;
+    std::shared_ptr<FriendManager> friend_manager_;
+    std::shared_ptr<Database> database_;
 };
 
 } // namespace chat
