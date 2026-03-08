@@ -1,0 +1,64 @@
+name: chat_app
+description: A Flutter chat application with support for private messages, group chats, and multimedia.
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # 状态管理
+  provider: ^6.1.1
+  
+  # 网络通信
+  web_socket_channel: ^2.4.0
+  http: ^1.1.0
+  
+  # 本地存储
+  shared_preferences: ^2.2.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  
+  # 图片选择和处理
+  image_picker: ^1.0.4
+  cached_network_image: ^3.3.0
+  photo_view: ^0.14.0
+  
+  # 文件处理
+  file_picker: ^6.1.1
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  
+  # UI组件
+  cupertino_icons: ^1.0.6
+  flutter_slidable: ^3.0.0
+  emoji_picker_flutter: ^1.6.1
+  flutter_link_previewer: ^3.2.2
+  url_launcher: ^6.2.1
+  
+  # 工具
+  intl: ^0.18.1
+  uuid: ^4.2.1
+  crypto: ^3.0.3
+  
+  # 多媒体
+  video_player: ^2.8.1
+  audioplayers: ^5.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.7
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/

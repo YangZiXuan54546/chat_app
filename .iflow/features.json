@@ -1,0 +1,240 @@
+{
+  "projectName": "Chat App",
+  "description": "跨平台聊天应用，支持私聊、群聊、好友系统和多媒体消息",
+  "createdAt": "2026-03-08T00:00:00Z",
+  "features": [
+    {
+      "id": "F001",
+      "category": "infrastructure",
+      "description": "MySQL 数据库初始化和连接配置",
+      "priority": "high",
+      "steps": [
+        "创建 MySQL 数据库",
+        "配置数据库连接参数",
+        "测试数据库连接",
+        "验证表结构自动创建"
+      ],
+      "acceptanceCriteria": [
+        "服务器启动时能成功连接数据库",
+        "所有表结构正确创建",
+        "数据库操作无错误"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F002",
+      "category": "functional",
+      "description": "用户注册功能",
+      "priority": "high",
+      "steps": [
+        "验证服务器端注册逻辑",
+        "验证客户端注册界面",
+        "测试用户名重复检测",
+        "测试密码哈希存储"
+      ],
+      "acceptanceCriteria": [
+        "用户可以使用用户名和密码注册",
+        "密码使用 SHA256 加密存储",
+        "重复用户名注册被正确拒绝"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F003",
+      "category": "functional",
+      "description": "用户登录功能",
+      "priority": "high",
+      "steps": [
+        "验证服务器端登录逻辑",
+        "验证客户端登录界面",
+        "测试记住密码功能",
+        "测试自动登录"
+      ],
+      "acceptanceCriteria": [
+        "用户可以使用正确的凭据登录",
+        "错误凭据被正确拒绝",
+        "登录状态正确保存"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F004",
+      "category": "functional",
+      "description": "私聊消息功能",
+      "priority": "high",
+      "steps": [
+        "测试消息发送",
+        "测试消息接收",
+        "验证消息存储",
+        "测试消息历史加载"
+      ],
+      "acceptanceCriteria": [
+        "消息能实时送达",
+        "消息顺序正确",
+        "消息状态正确显示"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F005",
+      "category": "functional",
+      "description": "好友系统 - 添加好友",
+      "priority": "high",
+      "steps": [
+        "实现用户搜索",
+        "实现好友请求发送",
+        "实现好友请求通知"
+      ],
+      "acceptanceCriteria": [
+        "可以搜索其他用户",
+        "可以发送好友请求",
+        "对方收到好友请求通知"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F006",
+      "category": "functional",
+      "description": "好友系统 - 管理好友",
+      "priority": "high",
+      "steps": [
+        "实现接受好友请求",
+        "实现拒绝好友请求",
+        "实现删除好友",
+        "实现好友备注"
+      ],
+      "acceptanceCriteria": [
+        "可以接受/拒绝好友请求",
+        "可以删除好友",
+        "好友列表正确显示"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F007",
+      "category": "functional",
+      "description": "群组创建功能",
+      "priority": "medium",
+      "steps": [
+        "实现创建群组",
+        "实现邀请成员",
+        "验证群组信息存储"
+      ],
+      "acceptanceCriteria": [
+        "可以创建群组",
+        "可以邀请好友加入",
+        "群组信息正确保存"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F008",
+      "category": "functional",
+      "description": "群聊消息功能",
+      "priority": "medium",
+      "steps": [
+        "实现群消息发送",
+        "实现群消息广播",
+        "验证群消息存储"
+      ],
+      "acceptanceCriteria": [
+        "群消息能广播给所有成员",
+        "群消息历史可加载",
+        "消息发送者正确标识"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F009",
+      "category": "functional",
+      "description": "群组管理功能",
+      "priority": "medium",
+      "steps": [
+        "实现群主权限",
+        "实现管理员设置",
+        "实现成员管理",
+        "实现解散群组"
+      ],
+      "acceptanceCriteria": [
+        "群主可以管理群组",
+        "管理员有相应权限",
+        "可以踢出成员"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F010",
+      "category": "functional",
+      "description": "多媒体消息 - 图片",
+      "priority": "medium",
+      "steps": [
+        "实现图片选择",
+        "实现图片上传",
+        "实现图片显示"
+      ],
+      "acceptanceCriteria": [
+        "可以选择并发送图片",
+        "图片正确上传存储",
+        "图片正确显示"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F011",
+      "category": "functional",
+      "description": "多媒体消息 - 文件",
+      "priority": "low",
+      "steps": [
+        "实现文件选择",
+        "实现文件上传",
+        "实现文件下载"
+      ],
+      "acceptanceCriteria": [
+        "可以选择并发送文件",
+        "文件正确存储",
+        "可以下载接收的文件"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F012",
+      "category": "technical",
+      "description": "心跳和重连机制",
+      "priority": "high",
+      "steps": [
+        "验证心跳发送",
+        "测试超时断开",
+        "测试自动重连"
+      ],
+      "acceptanceCriteria": [
+        "心跳正确发送",
+        "超时连接正确断开",
+        "网络恢复后自动重连"
+      ],
+      "status": "pending",
+      "completedAt": null
+    }
+  ],
+  "statistics": {
+    "total": 12,
+    "completed": 0,
+    "inProgress": 0,
+    "pending": 12,
+    "byPriority": {
+      "high": 6,
+      "medium": 4,
+      "low": 2
+    }
+  }
+}

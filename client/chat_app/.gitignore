@@ -1,0 +1,32 @@
+# Flutter-specific
+Flutter/
+flutter_assets/
+flutter_build/
+
+# Dart
+.dart_tool/
+.packages
+build/
+
+# Android
+*.iml
+.gradle/
+local.properties
+.idea/
+*.apk
+*.aab
+
+# iOS
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Web
+lib/generated_plugin_registrant.dart
+
+# General
+.DS_Store
+.atom/
+.vscode/
+*.log
+*.swp
