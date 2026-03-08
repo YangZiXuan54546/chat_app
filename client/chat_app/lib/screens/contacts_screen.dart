@@ -4,6 +4,7 @@ import '../services/chat_service.dart';
 import '../models/models.dart';
 import 'chat_screen.dart';
 import 'user_search_screen.dart';
+import 'friend_profile_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -99,8 +100,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       (context, index) {
                         final friend = friends[index];
                         return ListTile(
-                          leading: CircleAvatar(
-                            child: Text(friend.displayName[0]),
+                          leading: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => FriendProfileScreen(friend: friend),
+                                ),
+                              );
+                            },
+                            child: CircleAvatar(
+                              child: Text(friend.displayName[0]),
+                            ),
                           ),
                           title: Text(friend.displayName),
                           subtitle: friend.user.signature.isNotEmpty
@@ -129,6 +139,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                 ),
                               ),
                             );
+                          },
+                          onLongPress: () {
+                            _showFriendOptions(context, friend);
                           },
                         );
                       },
@@ -205,6 +218,81 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showFriendOptions(BuildContext context, Friend friend) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('查看详情'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => FriendProfileScreen(friend: friend),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text('发消息'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ChatScreen(
+                      peerId: friend.user.userId,
+                      peerName: friend.displayName,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('删除好友', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(context, friend);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, Friend friend) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除好友'),
+        content: Text('确定要删除好友 "${friend.displayName}" 吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<ChatService>().removeFriend(friend.user.userId);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('好友已删除')),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
       ),
     );
   }

@@ -42,6 +42,8 @@ enum class MessageType : uint8_t {
     FRIEND_LIST_RESPONSE = 29,
     FRIEND_REQUESTS = 30,
     FRIEND_REQUESTS_RESPONSE = 31,
+    FRIEND_REMARK = 32,
+    FRIEND_REMARK_RESPONSE = 33,
     
     // 私聊消息
     PRIVATE_MESSAGE = 40,

@@ -66,6 +66,7 @@ private:
     void handle_friend_remove(uint32_t sequence, const json& body);
     void handle_friend_list(uint32_t sequence, const json& body);
     void handle_friend_requests(uint32_t sequence, const json& body);
+    void handle_friend_remark(uint32_t sequence, const json& body);
     
     void handle_private_message(uint32_t sequence, const json& body);
     void handle_private_history(uint32_t sequence, const json& body);

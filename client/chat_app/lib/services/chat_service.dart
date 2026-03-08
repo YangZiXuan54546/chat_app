@@ -101,6 +101,18 @@ class ChatService extends ChangeNotifier {
       case MessageType.friendAdd:
         _handleFriendRequestNotification(body);
         break;
+      case MessageType.friendAcceptResponse:
+        _handleFriendAcceptResponse(body);
+        break;
+      case MessageType.friendRejectResponse:
+        _handleFriendRejectResponse(body);
+        break;
+      case MessageType.friendRemoveResponse:
+        _handleFriendRemoveResponse(body);
+        break;
+      case MessageType.friendRemarkResponse:
+        _handleFriendRemarkResponse(body);
+        break;
       default:
         break;
     }
@@ -188,6 +200,8 @@ class ChatService extends ChangeNotifier {
         
         // 加载好友列表
         _network.send(MessageType.friendList, {});
+        // 加载好友请求列表
+        _network.send(MessageType.friendRequests, {});
         // 加载群组列表
         _network.send(MessageType.groupList, {});
       }
@@ -538,6 +552,55 @@ class ChatService extends ChangeNotifier {
     // 刷新好友请求列表
     _loadFriendRequests();
     notifyListeners();
+  }
+
+  /// 处理接受好友请求响应
+  void _handleFriendAcceptResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友列表和好友请求列表
+      _loadFriendList();
+      _loadFriendRequests();
+    }
+    notifyListeners();
+  }
+
+  /// 处理拒绝好友请求响应
+  void _handleFriendRejectResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友请求列表
+      _loadFriendRequests();
+    }
+    notifyListeners();
+  }
+
+  /// 处理删除好友响应
+  void _handleFriendRemoveResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友列表
+      _loadFriendList();
+    }
+    notifyListeners();
+  }
+
+  /// 处理设置好友备注响应
+  void _handleFriendRemarkResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友列表
+      _loadFriendList();
+    }
+    notifyListeners();
+  }
+
+  /// 设置好友备注
+  void setFriendRemark(int friendId, String remark) {
+    _network.send(MessageType.friendRemark, {
+      'friend_id': friendId,
+      'remark': remark,
+    });
   }
 
   /// 加载好友请求列表

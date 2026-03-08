@@ -173,6 +173,9 @@ void Session::handle_message(MessageType type, uint32_t sequence, const json& bo
         case MessageType::FRIEND_REQUESTS:
             handle_friend_requests(sequence, body);
             break;
+        case MessageType::FRIEND_REMARK:
+            handle_friend_remark(sequence, body);
+            break;
             
         // 私聊消息
         case MessageType::PRIVATE_MESSAGE:
@@ -526,6 +529,29 @@ void Session::handle_friend_requests(uint32_t sequence, const json& body) {
     
     json response = {{"requests", requests_json}};
     send(Protocol::create_response(MessageType::FRIEND_REQUESTS_RESPONSE, sequence, response));
+}
+
+void Session::handle_friend_remark(uint32_t sequence, const json& body) {
+    if (!is_authenticated()) {
+        send(Protocol::create_error(sequence, 401, "Not authenticated"));
+        return;
+    }
+    
+    uint64_t friend_id = body.value("friend_id", 0);
+    std::string remark = body.value("remark", "");
+    
+    if (friend_id == 0) {
+        send(Protocol::create_error(sequence, 400, "Friend ID is required"));
+        return;
+    }
+    
+    std::string error;
+    if (friend_manager_->set_friend_remark(user_id_, friend_id, remark, error)) {
+        json response = {{"success", true}, {"friend_id", friend_id}, {"remark", remark}};
+        send(Protocol::create_response(MessageType::FRIEND_REMARK_RESPONSE, sequence, response));
+    } else {
+        send(Protocol::create_error(sequence, 500, error));
+    }
 }
 
 // ==================== 私聊消息处理器 ====================

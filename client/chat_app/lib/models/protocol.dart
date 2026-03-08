@@ -32,6 +32,8 @@ enum MessageType {
   friendListResponse(29),
   friendRequests(30),
   friendRequestsResponse(31),
+  friendRemark(32),
+  friendRemarkResponse(33),
 
   // 私聊消息
   privateMessage(40),
