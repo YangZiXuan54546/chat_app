@@ -7,7 +7,7 @@
 ## 当前状态
 - 阶段: 功能开发中
 - 最后更新: 2026-03-08
-- 完成功能: 4 / 12
+- 完成功能: 5 / 12
 
 ## 已完成工作
 - 2026-03-08 项目初始化完成
@@ -111,3 +111,22 @@
   - `server/src/session.cpp` - 启用消息转发，登录关联会话
   - `server/src/server.cpp` - 设置 session 的 server 引用
   - `client/chat_app/lib/services/chat_service.dart` - 响应处理
+
+## [2026-03-08] 完成功能 #F005 - 好友系统 - 添加好友
+- 实现内容:
+  - 客户端添加用户搜索响应处理 (_handleUserSearchResponse)
+  - 客户端添加好友请求响应处理 (_handleFriendAddResponse)
+  - 客户端添加好友请求通知处理 (_handleFriendRequestNotification)
+  - 修复用户搜索界面使用 ChatService 数据
+  - 服务器端启用好友请求实时通知功能
+  - 添加好友请求通知消息推送
+- 测试结果: 通过
+  - 用户搜索: 成功返回匹配用户列表
+  - 发送好友请求: 成功发送并存储到数据库
+  - 接收好友请求通知: 目标用户实时收到通知
+  - 接受好友请求: 成功建立双向好友关系
+  - 好友列表: 正确显示已添加好友
+- 相关文件:
+  - `server/src/session.cpp` - 添加好友请求通知推送
+  - `client/chat_app/lib/services/chat_service.dart` - 搜索结果和好友请求处理
+  - `client/chat_app/lib/screens/user_search_screen.dart` - 使用 ChatService 数据

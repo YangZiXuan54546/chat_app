@@ -401,8 +401,25 @@ void Session::handle_friend_add(uint32_t sequence, const json& body) {
         json response = {{"success", true}};
         send(Protocol::create_response(MessageType::FRIEND_ADD_RESPONSE, sequence, response));
         
-        // 通知目标用户
-        // server_->send_to_user(friend_id, notification);
+        // 通知目标用户（如果在线）
+        if (server_) {
+            // 获取发送者信息
+            UserInfo sender_info;
+            database_->get_user_by_id(user_id_, sender_info);
+            
+            // 构建好友请求通知
+            json notification = {
+                {"from_user_id", user_id_},
+                {"from_username", sender_info.username},
+                {"from_nickname", sender_info.nickname},
+                {"timestamp", std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count()}
+            };
+            
+            server_->send_to_user(friend_id, 
+                Protocol::serialize(MessageType::FRIEND_ADD, 0, notification));
+        }
     } else {
         send(Protocol::create_error(sequence, 500, error));
     }

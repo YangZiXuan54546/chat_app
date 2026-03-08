@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/chat_service.dart';
+import '../models/models.dart';
 
 class UserSearchScreen extends StatefulWidget {
   const UserSearchScreen({super.key});
@@ -11,7 +12,6 @@ class UserSearchScreen extends StatefulWidget {
 
 class _UserSearchScreenState extends State<UserSearchScreen> {
   final _searchController = TextEditingController();
-  List<dynamic> _searchResults = [];
   bool _isSearching = false;
 
   @override
@@ -20,7 +20,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     super.dispose();
   }
 
-  void _search() {
+  Future<void> _search() async {
     final keyword = _searchController.text.trim();
     if (keyword.isEmpty) return;
 
@@ -30,15 +30,45 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
     context.read<ChatService>().searchUsers(keyword);
     
-    // 模拟搜索延迟
-    Future.delayed(const Duration(seconds: 1), () {
+    // 等待搜索结果
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (mounted) {
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+
+  Future<void> _addFriend(BuildContext context, User user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('添加好友'),
+        content: Text('确定要添加 ${user.nickname} 为好友吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final success = await context.read<ChatService>().addFriend(user.userId);
       if (mounted) {
-        setState(() {
-          _isSearching = false;
-          _searchResults = []; // 实际从 chatService 获取
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? '好友请求已发送' : '发送失败，请稍后重试'),
+          ),
+        );
       }
-    });
+    }
   }
 
   @override
@@ -57,7 +87,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: _search,
+            onPressed: _isSearching ? null : _search,
             child: const Text('搜索'),
           ),
         ],
@@ -86,63 +116,48 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       );
     }
 
-    if (_searchResults.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.person_off, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('未找到相关用户', style: TextStyle(color: Colors.grey)),
-          ],
-        ),
-      );
-    }
+    return Consumer<ChatService>(
+      builder: (context, chatService, child) {
+        final results = chatService.searchResults;
+        
+        if (results.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.person_off, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('未找到相关用户', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
 
-    return ListView.builder(
-      itemCount: _searchResults.length,
-      itemBuilder: (context, index) {
-        final user = _searchResults[index];
-        return ListTile(
-          leading: CircleAvatar(
-            child: Text(user['nickname']?[0] ?? user['username']?[0] ?? '?'),
-          ),
-          title: Text(user['nickname'] ?? user['username']),
-          subtitle: Text('@${user['username']}'),
-          trailing: OutlinedButton(
-            onPressed: () {
-              _showAddFriendDialog(context, user);
-            },
-            child: const Text('添加'),
-          ),
+        return ListView.builder(
+          itemCount: results.length,
+          itemBuilder: (context, index) {
+            final user = results[index];
+            final isSelf = user.userId == chatService.currentUserId;
+            final isFriend = chatService.friends.any((f) => f.user.userId == user.userId);
+            
+            return ListTile(
+              leading: CircleAvatar(
+                child: Text(user.nickname.isNotEmpty ? user.nickname[0] : '?'),
+              ),
+              title: Text(user.nickname.isNotEmpty ? user.nickname : user.username),
+              subtitle: Text('@${user.username}'),
+              trailing: isSelf
+                  ? const Chip(label: Text('自己'))
+                  : isFriend
+                      ? const Chip(label: Text('已添加'))
+                      : OutlinedButton(
+                          onPressed: () => _addFriend(context, user),
+                          child: const Text('添加'),
+                        ),
+            );
+          },
         );
       },
-    );
-  }
-
-  void _showAddFriendDialog(BuildContext context, dynamic user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('添加好友'),
-        content: Text('确定要添加 ${user['nickname'] ?? user['username']} 为好友吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              context.read<ChatService>().addFriend(user['user_id']);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('好友请求已发送')),
-              );
-            },
-            child: const Text('添加'),
-          ),
-        ],
-      ),
     );
   }
 }

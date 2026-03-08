@@ -25,6 +25,11 @@ class ChatService extends ChangeNotifier {
   final List<Friend> _friends = [];
   final List<Friend> _friendRequests = [];
   final List<Conversation> _conversations = [];
+  List<User> _searchResults = [];
+  
+  // 好友请求相关状态
+  bool _friendAddSuccess = false;
+  String? _friendAddError;
 
   User? get currentUser => _currentUser;
   bool get isConnected => _isConnected;
@@ -38,6 +43,9 @@ class ChatService extends ChangeNotifier {
   List<Friend> get friendRequests => _friendRequests;
   List<Conversation> get conversations => _conversations;
   List<Group> get groups => _groups.values.toList();
+  List<User> get searchResults => _searchResults;
+  bool get friendAddSuccess => _friendAddSuccess;
+  String? get friendAddError => _friendAddError;
   
   int get currentUserId => _currentUser?.userId ?? 0;
 
@@ -83,6 +91,15 @@ class ChatService extends ChangeNotifier {
         break;
       case MessageType.groupListResponse:
         _handleGroupListResponse(body);
+        break;
+      case MessageType.userSearchResponse:
+        _handleUserSearchResponse(body);
+        break;
+      case MessageType.friendAddResponse:
+        _handleFriendAddResponse(body);
+        break;
+      case MessageType.friendAdd:
+        _handleFriendRequestNotification(body);
         break;
       default:
         break;
@@ -326,10 +343,25 @@ class ChatService extends ChangeNotifier {
   }
 
   /// 添加好友
-  void addFriend(int friendId) {
+  Future<bool> addFriend(int friendId) async {
+    // 重置状态
+    _friendAddSuccess = false;
+    _friendAddError = null;
+    
     _network.send(MessageType.friendAdd, {
       'friend_id': friendId,
     });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_friendAddSuccess || _friendAddError != null) {
+        return _friendAddSuccess;
+      }
+    }
+    
+    _friendAddError = 'Request timeout';
+    return false;
   }
 
   /// 接受好友请求
@@ -473,7 +505,42 @@ class ChatService extends ChangeNotifier {
     });
   }
 
-  /// 获取用户信息
+  /// 处理用户搜索响应
+  void _handleUserSearchResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final usersJson = data['users'] as List<dynamic>? ?? [];
+        _searchResults = usersJson
+            .map((json) => User.fromJson(json as Map<String, dynamic>))
+            .toList();
+        notifyListeners();
+      }
+    }
+  }
+
+  /// 处理添加好友响应
+  void _handleFriendAddResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      _friendAddSuccess = true;
+      _friendAddError = null;
+    } else {
+      _friendAddSuccess = false;
+      _friendAddError = body['message'] as String? ?? 'Failed to add friend';
+    }
+    notifyListeners();
+  }
+
+  /// 处理好友请求通知（被他人添加为好友）
+  void _handleFriendRequestNotification(Map<String, dynamic> body) {
+    // 刷新好友请求列表
+    _loadFriendRequests();
+    notifyListeners();
+  }
+
+  /// 加载好友请求列表
   void getUserInfo(int userId) {
     _network.send(MessageType.userInfo, {
       'user_id': userId,

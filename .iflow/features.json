@@ -94,8 +94,8 @@
         "可以发送好友请求",
         "对方收到好友请求通知"
       ],
-      "status": "pending",
-      "completedAt": null
+      "status": "completed",
+      "completedAt": "2026-03-08T15:00:00Z"
     },
     {
       "id": "F006",
@@ -228,9 +228,9 @@
   ],
   "statistics": {
     "total": 12,
-    "completed": 3,
+    "completed": 5,
     "inProgress": 0,
-    "pending": 9,
+    "pending": 7,
     "byPriority": {
       "high": 6,
       "medium": 4,

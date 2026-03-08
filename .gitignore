@@ -1,0 +1,22 @@
+# Build directories
+server/build/
+client/chat_app/build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Flutter
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+*.lock
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
