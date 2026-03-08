@@ -94,8 +94,9 @@ void Server::do_accept() {
 
 void Server::handle_accept(Session::ptr session, const asio::error_code& ec) {
     if (!ec) {
-        // 设置管理器
+        // 设置管理器和服务器引用
         session->set_managers(user_manager_, message_manager_, group_manager_, friend_manager_, database_);
+        session->set_server(shared_from_this());
         session->start();
         add_session(session);
     }

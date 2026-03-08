@@ -66,6 +66,12 @@ class ChatService extends ChangeNotifier {
       case MessageType.privateMessage:
         _handlePrivateMessage(body);
         break;
+      case MessageType.privateMessageResponse:
+        _handlePrivateMessageResponse(body);
+        break;
+      case MessageType.privateHistoryResponse:
+        _handlePrivateHistoryResponse(body);
+        break;
       case MessageType.groupMessage:
         _handleGroupMessage(body);
         break;
@@ -215,6 +221,61 @@ class ChatService extends ChangeNotifier {
     
     _updateConversation(message);
     notifyListeners();
+  }
+
+  /// 处理发送私聊消息的响应
+  void _handlePrivateMessageResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 消息发送成功，更新本地消息
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final message = Message.fromJson(data);
+        final key = message.receiverId;
+        
+        if (!_messages.containsKey(key)) {
+          _messages[key] = [];
+        }
+        // 查找并更新临时消息（如果有的话）
+        final existingIndex = _messages[key]!.indexWhere(
+          (m) => m.senderId == message.senderId && 
+                 m.receiverId == message.receiverId && 
+                 m.messageId == 0
+        );
+        if (existingIndex >= 0) {
+          _messages[key]![existingIndex] = message;
+        } else {
+          _messages[key]!.add(message);
+        }
+        
+        _updateConversation(message);
+        notifyListeners();
+      }
+    }
+  }
+
+  /// 处理私聊历史消息响应
+  void _handlePrivateHistoryResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final messagesJson = data['messages'] as List<dynamic>? ?? [];
+        for (final item in messagesJson) {
+          final message = Message.fromJson(item as Map<String, dynamic>);
+          final key = message.senderId == currentUserId ? message.receiverId : message.senderId;
+          
+          if (!_messages.containsKey(key)) {
+            _messages[key] = [];
+          }
+          // 避免重复添加
+          if (!_messages[key]!.any((m) => m.messageId == message.messageId)) {
+            _messages[key]!.insert(0, message);
+          }
+        }
+        notifyListeners();
+      }
+    }
   }
 
   /// 发送群聊消息

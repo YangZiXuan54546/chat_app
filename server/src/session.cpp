@@ -285,6 +285,11 @@ void Session::handle_login(uint32_t sequence, const json& body) {
         
         user_manager_->set_online_status(user_id, OnlineStatus::ONLINE);
         
+        // 关联用户会话，以便消息转发
+        if (server_) {
+            server_->set_user_online(user_id, shared_from_this());
+        }
+        
         json response = {
             {"user_id", user_id},
             {"user_info", user_info.to_json()}
@@ -534,8 +539,11 @@ void Session::handle_private_message(uint32_t sequence, const json& body) {
         json response = message.to_json();
         send(Protocol::create_response(MessageType::PRIVATE_MESSAGE_RESPONSE, sequence, response));
         
-        // 转发给接收者
-        // server_->send_to_user(receiver_id, Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, message.to_json()));
+        // 转发给接收者（如果在线）
+        if (server_) {
+            server_->send_to_user(receiver_id, 
+                Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, message.to_json()));
+        }
     } else {
         send(Protocol::create_error(sequence, 500, error));
     }

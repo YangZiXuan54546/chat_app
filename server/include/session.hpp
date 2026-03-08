@@ -44,6 +44,8 @@ public:
                       std::shared_ptr<FriendManager> friend_manager,
                       std::shared_ptr<Database> database);
     
+    void set_server(std::shared_ptr<Server> server) { server_ = server; }
+    
 private:
     void do_read_header();
     void do_read_body(uint32_t body_size);
@@ -103,6 +105,7 @@ private:
     std::shared_ptr<GroupManager> group_manager_;
     std::shared_ptr<FriendManager> friend_manager_;
     std::shared_ptr<Database> database_;
+    std::shared_ptr<Server> server_;
     
     std::chrono::steady_clock::time_point last_heartbeat_;
 };
