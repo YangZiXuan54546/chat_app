@@ -62,12 +62,9 @@ class _LoginScreenState extends State<LoginScreen> {
         await chatService.connect(storage.serverHost, storage.serverPort);
       }
       
-      chatService.login(_usernameController.text, _passwordController.text);
+      final success = await chatService.login(_usernameController.text, _passwordController.text);
       
-      // 等待登录结果
-      await Future.delayed(const Duration(seconds: 1));
-      
-      if (chatService.isAuthenticated) {
+      if (success && chatService.isAuthenticated) {
         // 保存凭据
         await StorageService().saveCredentials(
           _usernameController.text,
@@ -81,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         setState(() {
-          _error = '登录失败，请检查用户名和密码';
+          _error = chatService.loginError ?? '登录失败，请检查用户名和密码';
         });
       }
     } catch (e) {

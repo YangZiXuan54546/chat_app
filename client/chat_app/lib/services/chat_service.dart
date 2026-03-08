@@ -15,6 +15,10 @@ class ChatService extends ChangeNotifier {
   String? _registerError;
   int? _registeredUserId;
   
+  // 登录状态
+  bool _loginSuccess = false;
+  String? _loginError;
+  
   final Map<int, User> _users = {};
   final Map<int, Group> _groups = {};
   final Map<int, List<Message>> _messages = {}; // key: peerId or -groupId
@@ -28,6 +32,8 @@ class ChatService extends ChangeNotifier {
   bool get registerSuccess => _registerSuccess;
   String? get registerError => _registerError;
   int? get registeredUserId => _registeredUserId;
+  bool get loginSuccess => _loginSuccess;
+  String? get loginError => _loginError;
   List<Friend> get friends => _friends;
   List<Friend> get friendRequests => _friendRequests;
   List<Conversation> get conversations => _conversations;
@@ -116,11 +122,26 @@ class ChatService extends ChangeNotifier {
   }
 
   /// 登录
-  void login(String username, String password) {
+  Future<bool> login(String username, String password) async {
+    // 重置状态
+    _loginSuccess = false;
+    _loginError = null;
+    
     _network.send(MessageType.login, {
       'username': username,
       'password': password,
     });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_loginSuccess || _loginError != null) {
+        return _loginSuccess;
+      }
+    }
+    
+    _loginError = 'Login timeout';
+    return false;
   }
 
   /// 登出
@@ -139,12 +160,17 @@ class ChatService extends ChangeNotifier {
       if (data != null) {
         _currentUser = User.fromJson(data['user_info'] as Map<String, dynamic>);
         _isAuthenticated = true;
+        _loginSuccess = true;
+        _loginError = null;
         
         // 加载好友列表
         _network.send(MessageType.friendList, {});
         // 加载群组列表
         _network.send(MessageType.groupList, {});
       }
+    } else {
+      _loginSuccess = false;
+      _loginError = body['message'] as String? ?? 'Login failed';
     }
     notifyListeners();
   }
