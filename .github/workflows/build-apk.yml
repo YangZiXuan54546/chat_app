@@ -24,7 +24,7 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.24.0'
+        flutter-version: '3.19.6'
         channel: 'stable'
     
     - name: Get dependencies
@@ -33,8 +33,7 @@ jobs:
     
     - name: Build APK
       working-directory: client/chat_app
-      run: flutter build apk --release --no-tree-shake-icons
-      continue-on-error: true
+      run: flutter build apk --release
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
