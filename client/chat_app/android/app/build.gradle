@@ -35,6 +35,13 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    
+    // 强制所有子模块使用相同的 JVM 目标
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
