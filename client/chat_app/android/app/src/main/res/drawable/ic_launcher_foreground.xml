@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Chat bubble icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,20C36.3,20 22,32.3 22,47C22,54.5 25.5,61.3 31.2,66L28,78L42,72C45.8,73.3 49.8,74 54,74C71.7,74 86,61.7 86,47C86,32.3 71.7,20 54,20Z"/>
+</vector>
