@@ -597,13 +597,6 @@ class ChatService extends ChangeNotifier {
     });
   }
 
-  /// 离开群组
-  void leaveGroup(int groupId) {
-    _network.send(MessageType.groupLeave, {
-      'group_id': groupId,
-    });
-  }
-
   /// 处理群组列表响应
   void _handleGroupListResponse(Map<String, dynamic> body) {
     final data = body['data'] as Map<String, dynamic>?;

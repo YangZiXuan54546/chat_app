@@ -202,7 +202,7 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
       for (final memberId in _group!.members) {
         final user = chatService.searchResults.firstWhere(
           (u) => u.userId == memberId,
-          orElse: () => User(userId: memberId, username: '用户$memberId'),
+          orElse: () => User(userId: memberId, username: '用户$memberId', nickname: '用户$memberId'),
         );
         
         members.add(GroupMember(
