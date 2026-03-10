@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../services/chat_service.dart';
 import '../models/models.dart';
 import 'group_management_screen.dart';
@@ -288,19 +292,54 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     )
                   else if (message.isFile)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.insert_drive_file),
-                          const SizedBox(width: 8),
-                          Text(message.content),
-                        ],
+                    GestureDetector(
+                      onTap: () => _downloadFile(message),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getFileIcon(message.content),
+                              size: 40,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    message.content,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '点击下载',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.download,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   else
@@ -430,10 +469,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: '文件',
                 onTap: () {
                   Navigator.pop(context);
-                  // 选择文件 - 待实现
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('文件功能即将上线')),
-                  );
+                  _pickFile();
                 },
               ),
             ],
@@ -497,6 +533,225 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       }
+    }
+  }
+  
+  /// 选择文件并发送
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowCompression: false,
+      );
+      
+      if (result == null || result.files.isEmpty) return;
+      
+      final file = result.files.first;
+      if (file.path == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('无法获取文件路径'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      
+      // 检查文件大小 (限制10MB)
+      final fileObj = File(file.path!);
+      final fileSize = await fileObj.length();
+      if (fileSize > 10 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('文件大小超出限制 (最大 10MB)，当前: ${ChatService.formatFileSize(fileSize)}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      
+      final chatService = context.read<ChatService>();
+      
+      // 显示上传进度
+      setState(() {
+        _isUploading = true;
+      });
+      
+      // 发送文件消息
+      final success = await chatService.sendFileMessage(
+        widget.peerId,
+        fileObj,
+        file.name,
+        isGroup: widget.isGroup,
+      );
+      
+      setState(() {
+        _isUploading = false;
+      });
+      
+      if (!success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(chatService.uploadError ?? '发送文件失败'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        _scrollToBottom();
+      }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('选择文件失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  /// 下载文件
+  Future<void> _downloadFile(Message message) async {
+    if (message.mediaUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('文件链接无效')),
+      );
+      return;
+    }
+    
+    try {
+      // 显示下载中提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('正在下载文件...')),
+      );
+      
+      // 获取下载目录
+      final downloadDir = await getExternalStorageDirectory() ?? 
+                          await getApplicationDocumentsDirectory();
+      
+      // 从 URL 提取文件名或使用消息内容
+      String fileName = message.content;
+      if (fileName.isEmpty) {
+        fileName = path.basename(Uri.parse(message.mediaUrl).path);
+      }
+      
+      final localPath = path.join(downloadDir.path, 'downloads', fileName);
+      
+      // 确保下载目录存在
+      final downloadFolder = Directory(path.dirname(localPath));
+      if (!await downloadFolder.exists()) {
+        await downloadFolder.create(recursive: true);
+      }
+      
+      // 使用 http 下载文件
+      final uri = Uri.parse(message.mediaUrl);
+      final request = await HttpClient().getUrl(uri);
+      final response = await request.close();
+      
+      if (response.statusCode == 200) {
+        final file = File(localPath);
+        await file.writeAsBytes(await response.toList().then((list) => list.expand((x) => x).toList()));
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('文件已保存到: $localPath'),
+              action: SnackBarAction(
+                label: '打开',
+                onPressed: () => _openFile(localPath),
+              ),
+            ),
+          );
+        }
+      } else {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('下载失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  /// 打开文件
+  Future<void> _openFile(String filePath) async {
+    try {
+      final uri = Uri.file(filePath);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法打开此文件类型')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('打开文件失败: $e')),
+        );
+      }
+    }
+  }
+  
+  /// 根据文件名获取图标
+  IconData _getFileIcon(String fileName) {
+    final extension = path.extension(fileName).toLowerCase();
+    switch (extension) {
+      case '.pdf':
+        return Icons.picture_as_pdf;
+      case '.doc':
+      case '.docx':
+        return Icons.description;
+      case '.xls':
+      case '.xlsx':
+        return Icons.table_chart;
+      case '.ppt':
+      case '.pptx':
+        return Icons.slideshow;
+      case '.zip':
+      case '.rar':
+      case '.7z':
+        return Icons.folder_zip;
+      case '.mp3':
+      case '.wav':
+      case '.flac':
+        return Icons.audio_file;
+      case '.mp4':
+      case '.avi':
+      case '.mkv':
+        return Icons.video_file;
+      case '.txt':
+        return Icons.article;
+      case '.json':
+      case '.xml':
+      case '.html':
+      case '.css':
+      case '.js':
+      case '.dart':
+      case '.py':
+      case '.java':
+      case '.cpp':
+      case '.h':
+        return Icons.code;
+      default:
+        return Icons.insert_drive_file;
     }
   }
 

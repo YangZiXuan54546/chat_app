@@ -958,4 +958,40 @@ class ChatService extends ChangeNotifier {
     
     return true;
   }
+  
+  /// 发送文件消息
+  /// [peerId] 接收者ID或群组ID
+  /// [file] 文件对象
+  /// [fileName] 文件名
+  /// [isGroup] 是否群聊
+  Future<bool> sendFileMessage(int peerId, File file, String fileName, {bool isGroup = false}) async {
+    // 上传文件
+    final mediaUrl = await uploadMedia(file, mediaType: MediaType.file.value);
+    
+    if (mediaUrl == null) {
+      return false;
+    }
+    
+    // 发送消息，content 存储文件名
+    if (isGroup) {
+      sendGroupMessage(peerId, fileName, mediaType: MediaType.file.value, mediaUrl: mediaUrl);
+    } else {
+      sendPrivateMessage(peerId, fileName, mediaType: MediaType.file.value, mediaUrl: mediaUrl);
+    }
+    
+    return true;
+  }
+  
+  /// 格式化文件大小
+  static String formatFileSize(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    } else if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    } else if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } else {
+      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    }
+  }
 }
