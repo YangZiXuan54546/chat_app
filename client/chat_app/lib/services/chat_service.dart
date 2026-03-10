@@ -1,10 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../models/protocol.dart';
 import 'network_service.dart';
+import 'message_database.dart';
 
 class ChatService extends ChangeNotifier {
   final NetworkService _network = NetworkService();
+  final MessageDatabase _messageDb = MessageDatabase();
   
   User? _currentUser;
   bool _isConnected = false;
@@ -35,6 +40,13 @@ class ChatService extends ChangeNotifier {
   bool _groupCreateSuccess = false;
   String? _groupCreateError;
   int? _createdGroupId;
+  
+  // 媒体上传相关状态
+  bool _mediaUploading = false;
+  double _uploadProgress = 0.0;
+  String? _uploadedMediaUrl;
+  int? _uploadedFileId;
+  String? _uploadError;
 
   User? get currentUser => _currentUser;
   bool get isConnected => _isConnected;
@@ -54,6 +66,13 @@ class ChatService extends ChangeNotifier {
   bool get groupCreateSuccess => _groupCreateSuccess;
   String? get groupCreateError => _groupCreateError;
   int? get createdGroupId => _createdGroupId;
+  
+  // 媒体上传相关 getter
+  bool get mediaUploading => _mediaUploading;
+  double get uploadProgress => _uploadProgress;
+  String? get uploadedMediaUrl => _uploadedMediaUrl;
+  int? get uploadedFileId => _uploadedFileId;
+  String? get uploadError => _uploadError;
   
   int get currentUserId => _currentUser?.userId ?? 0;
 
@@ -144,6 +163,9 @@ class ChatService extends ChangeNotifier {
         break;
       case MessageType.groupMembersResponse:
         _handleGroupMembersResponse(body);
+        break;
+      case MessageType.mediaUploadResponse:
+        _handleMediaUploadResponse(body);
         break;
       default:
         break;
@@ -282,6 +304,9 @@ class ChatService extends ChangeNotifier {
     }
     _messages[key]!.add(message);
     
+    // 保存到本地数据库
+    _messageDb.saveMessage(message);
+    
     _updateConversation(message);
     notifyListeners();
   }
@@ -311,6 +336,9 @@ class ChatService extends ChangeNotifier {
           _messages[key]!.add(message);
         }
         
+        // 保存到本地数据库
+        _messageDb.saveMessage(message);
+        
         _updateConversation(message);
         notifyListeners();
       }
@@ -324,8 +352,14 @@ class ChatService extends ChangeNotifier {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
         final messagesJson = data['messages'] as List<dynamic>? ?? [];
+        final serverMessages = <Message>[];
+        int peerId = 0;
+        
         for (final item in messagesJson) {
           final message = Message.fromJson(item as Map<String, dynamic>);
+          serverMessages.add(message);
+          peerId = message.senderId == currentUserId ? message.receiverId : message.senderId;
+          
           final key = message.senderId == currentUserId ? message.receiverId : message.senderId;
           
           if (!_messages.containsKey(key)) {
@@ -336,6 +370,12 @@ class ChatService extends ChangeNotifier {
             _messages[key]!.insert(0, message);
           }
         }
+        
+        // 批量保存到本地数据库
+        if (peerId > 0 && serverMessages.isNotEmpty) {
+          _messageDb.saveMessages(peerId, serverMessages, isGroup: false);
+        }
+        
         notifyListeners();
       }
     }
@@ -361,6 +401,9 @@ class ChatService extends ChangeNotifier {
     }
     _messages[key]!.add(message);
     
+    // 保存到本地数据库
+    _messageDb.saveMessage(message);
+    
     _updateConversation(message);
     notifyListeners();
   }
@@ -369,6 +412,17 @@ class ChatService extends ChangeNotifier {
   List<Message> getMessages(int peerId, {bool isGroup = false}) {
     final key = isGroup ? -peerId : peerId;
     return _messages[key] ?? [];
+  }
+  
+  /// 从本地数据库加载消息
+  Future<void> loadLocalMessages(int peerId, {bool isGroup = false}) async {
+    final messages = await _messageDb.getMessages(peerId, isGroup: isGroup);
+    final key = isGroup ? -peerId : peerId;
+    
+    if (messages.isNotEmpty) {
+      _messages[key] = messages;
+      notifyListeners();
+    }
   }
 
   /// 加载历史消息
@@ -814,5 +868,94 @@ class ChatService extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+  
+  // ==================== 媒体上传相关 ====================
+  
+  /// 上传媒体文件
+  /// 返回上传成功后的文件 URL
+  Future<String?> uploadMedia(File file, {int mediaType = 1}) async {
+    // 重置状态
+    _mediaUploading = true;
+    _uploadProgress = 0.0;
+    _uploadedMediaUrl = null;
+    _uploadedFileId = null;
+    _uploadError = null;
+    notifyListeners();
+    
+    try {
+      // 读取文件
+      final bytes = await file.readAsBytes();
+      final base64Data = base64Encode(bytes);
+      final fileName = file.path.split('/').last;
+      
+      _uploadProgress = 0.5;
+      notifyListeners();
+      
+      // 发送上传请求
+      _network.send(MessageType.mediaUpload, {
+        'file_name': fileName,
+        'file_data': base64Data,
+        'media_type': mediaType,
+      });
+      
+      // 等待响应（最多30秒，因为文件可能较大）
+      for (int i = 0; i < 300; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (_uploadedMediaUrl != null || _uploadError != null) {
+          _mediaUploading = false;
+          _uploadProgress = 1.0;
+          notifyListeners();
+          return _uploadedMediaUrl;
+        }
+      }
+      
+      _mediaUploading = false;
+      _uploadError = 'Upload timeout';
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _mediaUploading = false;
+      _uploadError = 'Upload failed: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+  
+  /// 处理媒体上传响应
+  void _handleMediaUploadResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        _uploadedFileId = data['file_id'] as int?;
+        _uploadedMediaUrl = data['url'] as String?;
+        _uploadError = null;
+      }
+    } else {
+      _uploadedMediaUrl = null;
+      _uploadedFileId = null;
+      _uploadError = body['message'] as String? ?? 'Upload failed';
+    }
+    notifyListeners();
+  }
+  
+  /// 发送图片消息
+  Future<bool> sendImageMessage(int peerId, File imageFile, {bool isGroup = false}) async {
+    // 上传图片
+    final mediaUrl = await uploadMedia(imageFile, mediaType: MediaType.image.value);
+    
+    if (mediaUrl == null) {
+      return false;
+    }
+    
+    // 发送消息
+    if (isGroup) {
+      sendGroupMessage(peerId, '', mediaType: MediaType.image.value, mediaUrl: mediaUrl);
+    } else {
+      sendPrivateMessage(peerId, '', mediaType: MediaType.image.value, mediaUrl: mediaUrl);
+    }
+    
+    return true;
   }
 }

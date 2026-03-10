@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/chat_service.dart';
 import 'services/storage_service.dart';
+import 'services/message_database.dart';
 import 'screens/splash_screen.dart';
 import 'providers/app_provider.dart';
 
@@ -10,6 +11,9 @@ void main() async {
   
   // 初始化存储服务
   await StorageService().init();
+  
+  // 初始化本地消息数据库
+  await MessageDatabase().init();
   
   runApp(const ChatApp());
 }

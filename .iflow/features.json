@@ -186,8 +186,8 @@
         "图片正确上传存储",
         "图片正确显示"
       ],
-      "status": "pending",
-      "completedAt": null
+      "status": "completed",
+      "completedAt": "2026-03-11T06:30:00Z"
     },
     {
       "id": "F011",
@@ -224,15 +224,53 @@
       ],
       "status": "pending",
       "completedAt": null
+    },
+    {
+      "id": "F013",
+      "category": "functional",
+      "description": "客户端本地聊天记录保存",
+      "priority": "high",
+      "steps": [
+        "实现本地 SQLite 数据库",
+        "保存私聊消息记录",
+        "保存群聊消息记录",
+        "实现离线消息加载"
+      ],
+      "acceptanceCriteria": [
+        "消息自动保存到本地",
+        "离线时可查看历史记录",
+        "消息与服务器同步"
+      ],
+      "status": "pending",
+      "completedAt": null
+    },
+    {
+      "id": "F014",
+      "category": "functional",
+      "description": "DeepSeek AI 机器人自动回复",
+      "priority": "high",
+      "steps": [
+        "创建机器人用户账户",
+        "集成 DeepSeek API",
+        "实现消息自动回复",
+        "测试 AI 对话功能"
+      ],
+      "acceptanceCriteria": [
+        "机器人自动回复私聊消息",
+        "AI 回复内容合理",
+        "支持多轮对话上下文"
+      ],
+      "status": "pending",
+      "completedAt": null
     }
   ],
   "statistics": {
-    "total": 12,
-    "completed": 9,
+    "total": 14,
+    "completed": 10,
     "inProgress": 0,
-    "pending": 3,
+    "pending": 4,
     "byPriority": {
-      "high": 6,
+      "high": 8,
       "medium": 4,
       "low": 2
     }

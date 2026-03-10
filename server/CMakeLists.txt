@@ -25,6 +25,8 @@ add_executable(chat_server
     src/message_manager.cpp
     src/group_manager.cpp
     src/friend_manager.cpp
+    src/deepseek_client.cpp
+    src/bot_manager.cpp
 )
 
 target_include_directories(chat_server PRIVATE

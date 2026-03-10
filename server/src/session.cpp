@@ -5,8 +5,13 @@
 #include "group_manager.hpp"
 #include "friend_manager.hpp"
 #include "database.hpp"
+#include "bot_manager.hpp"
 #include <chrono>
 #include <iostream>
+#include <fstream>
+#include <sys/stat.h>
+#include <ctime>
+#include <iomanip>
 
 namespace chat {
 
@@ -410,6 +415,12 @@ void Session::handle_friend_add(uint32_t sequence, const json& body) {
         json response = {{"success", true}};
         send(Protocol::create_response(MessageType::FRIEND_ADD_RESPONSE, sequence, response));
         
+        // 检查是否添加机器人好友
+        if (bot_manager_ && bot_manager_->is_bot(friend_id)) {
+            // 机器人自动接受好友请求
+            bot_manager_->handle_friend_request(user_id_);
+        }
+        
         // 通知目标用户（如果在线）
         if (server_) {
             // 获取发送者信息
@@ -592,6 +603,13 @@ void Session::handle_private_message(uint32_t sequence, const json& body) {
         if (server_) {
             server_->send_to_user(receiver_id, 
                 Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, message.to_json()));
+        }
+        
+        // 检查是否发送给机器人
+        if (bot_manager_ && bot_manager_->is_bot(receiver_id)) {
+            if (bot_manager_->is_enabled()) {
+                bot_manager_->handle_bot_message(user_id_, content, message.message_id);
+            }
         }
     } else {
         send(Protocol::create_error(sequence, 500, error));
@@ -932,6 +950,44 @@ void Session::handle_group_history(uint32_t sequence, const json& body) {
 
 // ==================== 媒体上传处理器 ====================
 
+// Base64 解码函数
+static std::vector<uint8_t> base64_decode(const std::string& encoded) {
+    // Base64 解码表
+    static const int decode_table[256] = {
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,-1,-1,63,
+        52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-1,-1,-1,
+        -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,
+        15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,
+        -1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,
+        41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    };
+    
+    std::vector<uint8_t> decoded;
+    int val = 0, valb = -8;
+    
+    for (unsigned char c : encoded) {
+        if (decode_table[c] == -1) break;
+        val = (val << 6) + decode_table[c];
+        valb += 6;
+        if (valb >= 0) {
+            decoded.push_back(static_cast<uint8_t>((val >> valb) & 0xFF));
+            valb -= 8;
+        }
+    }
+    
+    return decoded;
+}
+
 void Session::handle_media_upload(uint32_t sequence, const json& body) {
     if (!is_authenticated()) {
         send(Protocol::create_error(sequence, 401, "Not authenticated"));
@@ -947,21 +1003,86 @@ void Session::handle_media_upload(uint32_t sequence, const json& body) {
         return;
     }
     
-    // Base64 解码
-    // ... (实际实现需要 Base64 解码)
+    // 检查文件大小 (Base64 编码后约为原文件的 4/3 倍，限制 10MB 原始数据)
+    const size_t max_file_size = 10 * 1024 * 1024;
+    if (file_data_base64.size() > max_file_size * 4 / 3) {
+        send(Protocol::create_error(sequence, 400, "File size exceeds limit (10MB)"));
+        return;
+    }
     
+    // Base64 解码
+    std::vector<uint8_t> file_data = base64_decode(file_data_base64);
+    
+    if (file_data.empty()) {
+        send(Protocol::create_error(sequence, 400, "Invalid base64 data"));
+        return;
+    }
+    
+    // 创建媒体文件目录
+    std::string media_dir = "media";
+    mkdir(media_dir.c_str(), 0755);
+    
+    // 生成年月子目录
+    auto now = std::chrono::system_clock::now();
+    auto now_time = std::chrono::system_clock::to_time_t(now);
+    std::tm* tm_info = std::localtime(&now_time);
+    char date_path[32];
+    std::strftime(date_path, sizeof(date_path), "%Y/%m/%d", tm_info);
+    
+    std::string full_dir = media_dir + "/" + date_path;
+    std::string cmd = "mkdir -p " + full_dir;
+    system(cmd.c_str());
+    
+    // 生成唯一文件名
+    auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()
+    ).count();
+    
+    // 获取文件扩展名
+    std::string extension;
+    size_t dot_pos = file_name.find_last_of('.');
+    if (dot_pos != std::string::npos) {
+        extension = file_name.substr(dot_pos);
+    }
+    
+    std::ostringstream unique_name;
+    unique_name << user_id_ << "_" << timestamp << extension;
+    
+    std::string file_path = full_dir + "/" + unique_name.str();
+    
+    // 写入文件
+    std::ofstream out_file(file_path, std::ios::binary);
+    if (!out_file) {
+        send(Protocol::create_error(sequence, 500, "Failed to save file"));
+        return;
+    }
+    out_file.write(reinterpret_cast<const char*>(file_data.data()), file_data.size());
+    out_file.close();
+    
+    // 保存到数据库
     uint64_t file_id = 0;
     std::string url;
-    std::string error;
     
-    std::vector<uint8_t> file_data; // 解码后的数据
-    // message_manager_->upload_media(user_id_, file_name, file_data, 
-    //                                static_cast<MediaType>(media_type_int),
-    //                                file_id, url, error);
+    if (!database_->save_media_file(user_id_, unique_name.str(), file_path,
+                                     static_cast<MediaType>(media_type_int),
+                                     file_id, url)) {
+        // 删除已保存的文件
+        std::remove(file_path.c_str());
+        send(Protocol::create_error(sequence, 500, "Failed to save file info"));
+        return;
+    }
+    
+    // 构建完整的 URL
+    std::ostringstream url_stream;
+    url_stream << "http://localhost:8889/media/" << file_id << "/" << unique_name.str();
+    url = url_stream.str();
     
     json response = {
         {"file_id", file_id},
-        {"url", url}
+        {"url", url},
+        {"file_name", file_name},
+        {"file_size", file_data.size()},
+        {"media_type", media_type_int}
     };
     send(Protocol::create_response(MessageType::MEDIA_UPLOAD_RESPONSE, sequence, response));
 }

@@ -4,9 +4,11 @@
 #include "message_manager.hpp"
 #include "group_manager.hpp"
 #include "friend_manager.hpp"
+#include "bot_manager.hpp"
 #include <iostream>
 #include <memory>
 #include <csignal>
+#include <cstdlib>
 
 std::shared_ptr<chat::Server> g_server;
 
@@ -31,6 +33,12 @@ int main(int argc, char* argv[]) {
     server_config.thread_count = 4;
     server_config.heartbeat_timeout = 60;
     
+    // 机器人配置
+    std::string deepseek_api_key;
+    std::string bot_username = "deepseek_bot";
+    std::string bot_nickname = "AI 助手";
+    bool bot_enabled = false;
+    
     // 解析命令行参数
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -48,6 +56,13 @@ int main(int argc, char* argv[]) {
             server_config.port = std::stoi(argv[++i]);
         } else if (arg == "--threads" && i + 1 < argc) {
             server_config.thread_count = std::stoi(argv[++i]);
+        } else if (arg == "--deepseek-api-key" && i + 1 < argc) {
+            deepseek_api_key = argv[++i];
+            bot_enabled = true;
+        } else if (arg == "--bot-username" && i + 1 < argc) {
+            bot_username = argv[++i];
+        } else if (arg == "--bot-nickname" && i + 1 < argc) {
+            bot_nickname = argv[++i];
         } else if (arg == "--help") {
             std::cout << "Usage: " << argv[0] << " [options]\n"
                       << "Options:\n"
@@ -58,6 +73,9 @@ int main(int argc, char* argv[]) {
                       << "  --db-name <name>       Database name (default: chat_app)\n"
                       << "  --port <port>          Server port (default: 8888)\n"
                       << "  --threads <count>      Thread count (default: 4)\n"
+                      << "  --deepseek-api-key <key>  DeepSeek API key for AI bot\n"
+                      << "  --bot-username <name>  Bot username (default: deepseek_bot)\n"
+                      << "  --bot-nickname <name>  Bot nickname (default: AI 助手)\n"
                       << "  --help                 Show this help message\n";
             return 0;
         }
@@ -87,6 +105,31 @@ int main(int argc, char* argv[]) {
     message_manager->set_server(g_server);
     group_manager->set_server(g_server);
     friend_manager->set_server(g_server);
+    
+    // 初始化机器人管理器（如果配置了 API key）
+    std::shared_ptr<chat::BotManager> bot_manager;
+    if (bot_enabled && !deepseek_api_key.empty()) {
+        bot_manager = std::make_shared<chat::BotManager>(g_server->get_io_context(), database);
+        
+        chat::BotConfig bot_config;
+        bot_config.api_key = deepseek_api_key;
+        bot_config.bot_username = bot_username;
+        bot_config.bot_nickname = bot_nickname;
+        bot_config.auto_accept_friend = true;
+        bot_config.enabled = true;
+        bot_config.system_prompt = "你是一个友好的聊天助手。请用简洁、自然的方式回复用户的消息。回复时请使用中文。";
+        
+        if (bot_manager->init(bot_config)) {
+            bot_manager->set_server(g_server);
+            g_server->set_bot_manager(bot_manager);
+            std::cout << "AI Bot initialized successfully" << std::endl;
+        } else {
+            std::cerr << "Failed to initialize AI Bot" << std::endl;
+            bot_manager.reset();
+        }
+    } else {
+        std::cout << "AI Bot not configured (use --deepseek-api-key to enable)" << std::endl;
+    }
     
     // 设置信号处理
     std::signal(SIGINT, signal_handler);

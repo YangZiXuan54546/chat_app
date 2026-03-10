@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/chat_service.dart';
 import '../models/models.dart';
 import 'group_management_screen.dart';
@@ -24,8 +27,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
+  final _imagePicker = ImagePicker();
   
   bool _showEmoji = false;
+  bool _isUploading = false;
 
   @override
   void dispose() {
@@ -116,6 +121,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          // 上传进度指示器
+          if (_isUploading)
+            LinearProgressIndicator(
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          
           // 消息列表
           Expanded(
             child: Consumer<ChatService>(
@@ -266,13 +280,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (message.isImage)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        message.mediaUrl,
-                        width: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+                    GestureDetector(
+                      onTap: () => _showImagePreview(message.mediaUrl),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: _buildImageWidget(message.mediaUrl),
                       ),
                     )
                   else if (message.isFile)
@@ -317,6 +329,55 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+  
+  /// 构建图片组件
+  Widget _buildImageWidget(String url) {
+    if (url.isEmpty) {
+      return const Icon(Icons.broken_image, size: 100);
+    }
+    
+    // 检查是否是网络URL
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        width: 200,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          width: 200,
+          height: 150,
+          color: Colors.grey[200],
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 200,
+          height: 150,
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image, size: 50),
+        ),
+      );
+    } else {
+      // 本地文件
+      return Image.file(
+        File(url),
+        width: 200,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 100),
+      );
+    }
+  }
+  
+  /// 显示图片预览
+  void _showImagePreview(String url) {
+    if (url.isEmpty) return;
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _ImagePreviewScreen(url: url),
+      ),
+    );
+  }
 
   IconData _getStatusIcon(int status) {
     switch (status) {
@@ -342,7 +403,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: '图片',
                 onTap: () {
                   Navigator.pop(context);
-                  // 选择图片
+                  _pickImage(ImageSource.gallery);
                 },
               ),
               _buildAttachmentOption(
@@ -350,7 +411,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: '拍照',
                 onTap: () {
                   Navigator.pop(context);
-                  // 拍照
+                  _pickImage(ImageSource.camera);
                 },
               ),
               _buildAttachmentOption(
@@ -358,7 +419,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: '视频',
                 onTap: () {
                   Navigator.pop(context);
-                  // 选择视频
+                  // 选择视频 - 待实现
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('视频功能即将上线')),
+                  );
                 },
               ),
               _buildAttachmentOption(
@@ -366,7 +430,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: '文件',
                 onTap: () {
                   Navigator.pop(context);
-                  // 选择文件
+                  // 选择文件 - 待实现
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('文件功能即将上线')),
+                  );
                 },
               ),
             ],
@@ -374,6 +441,63 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+  
+  /// 选择图片并发送
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+      
+      if (image == null) return;
+      
+      final chatService = context.read<ChatService>();
+      
+      // 显示上传进度
+      setState(() {
+        _isUploading = true;
+      });
+      
+      // 发送图片消息
+      final success = await chatService.sendImageMessage(
+        widget.peerId,
+        File(image.path),
+        isGroup: widget.isGroup,
+      );
+      
+      setState(() {
+        _isUploading = false;
+      });
+      
+      if (!success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(chatService.uploadError ?? '发送图片失败'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        _scrollToBottom();
+      }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('选择图片失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildAttachmentOption({
@@ -404,6 +528,50 @@ class _ChatScreenState extends State<ChatScreen> {
             const SizedBox(height: 8),
             Text(label),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 图片预览屏幕
+class _ImagePreviewScreen extends StatelessWidget {
+  final String url;
+  
+  const _ImagePreviewScreen({required this.url});
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: url.startsWith('http://') || url.startsWith('https://')
+              ? CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => const CircularProgressIndicator(),
+                  errorWidget: (context, url, error) => const Icon(
+                    Icons.broken_image,
+                    color: Colors.white,
+                    size: 100,
+                  ),
+                )
+              : Image.file(
+                  File(url),
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image,
+                    color: Colors.white,
+                    size: 100,
+                  ),
+                ),
         ),
       ),
     );

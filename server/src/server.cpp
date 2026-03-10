@@ -5,6 +5,7 @@
 #include "group_manager.hpp"
 #include "friend_manager.hpp"
 #include "database.hpp"
+#include "bot_manager.hpp"
 #include <iostream>
 #include <thread>
 
@@ -97,6 +98,7 @@ void Server::handle_accept(Session::ptr session, const asio::error_code& ec) {
         // 设置管理器和服务器引用
         session->set_managers(user_manager_, message_manager_, group_manager_, friend_manager_, database_);
         session->set_server(shared_from_this());
+        session->set_bot_manager(bot_manager_);
         session->start();
         add_session(session);
     }
@@ -211,6 +213,10 @@ void Server::set_managers(std::shared_ptr<UserManager> user_manager,
     group_manager_ = group_manager;
     friend_manager_ = friend_manager;
     database_ = database;
+}
+
+void Server::set_bot_manager(std::shared_ptr<BotManager> bot_manager) {
+    bot_manager_ = bot_manager;
 }
 
 void Server::check_heartbeats() {

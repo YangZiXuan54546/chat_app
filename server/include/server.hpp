@@ -17,6 +17,7 @@ class MessageManager;
 class GroupManager;
 class FriendManager;
 class Database;
+class BotManager;
 
 class Server : public std::enable_shared_from_this<Server> {
 public:
@@ -63,6 +64,12 @@ public:
                       std::shared_ptr<FriendManager> friend_manager,
                       std::shared_ptr<Database> database);
     
+    // 设置机器人管理器
+    void set_bot_manager(std::shared_ptr<BotManager> bot_manager);
+    
+    // 获取 io_context（用于异步操作）
+    IOContext& get_io_context() { return io_context_; }
+    
 private:
     void do_accept();
     void handle_accept(Session::ptr session, const asio::error_code& ec);
@@ -88,6 +95,7 @@ private:
     std::shared_ptr<GroupManager> group_manager_;
     std::shared_ptr<FriendManager> friend_manager_;
     std::shared_ptr<Database> database_;
+    std::shared_ptr<BotManager> bot_manager_;
 };
 
 } // namespace chat

@@ -17,6 +17,7 @@ class MessageManager;
 class GroupManager;
 class FriendManager;
 class Database;
+class BotManager;
 
 class Session : public std::enable_shared_from_this<Session> {
 public:
@@ -45,6 +46,7 @@ public:
                       std::shared_ptr<Database> database);
     
     void set_server(std::shared_ptr<Server> server) { server_ = server; }
+    void set_bot_manager(std::shared_ptr<BotManager> bot_manager) { bot_manager_ = bot_manager; }
     
 private:
     void do_read_header();
@@ -109,6 +111,7 @@ private:
     std::shared_ptr<FriendManager> friend_manager_;
     std::shared_ptr<Database> database_;
     std::shared_ptr<Server> server_;
+    std::shared_ptr<BotManager> bot_manager_;
     
     std::chrono::steady_clock::time_point last_heartbeat_;
 };
