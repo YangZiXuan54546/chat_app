@@ -83,6 +83,17 @@ public:
                          uint64_t& file_id, std::string& url);
     bool get_media_file(uint64_t file_id, std::string& file_path, MediaType& type);
     
+    // 机器人聊天记录相关
+    bool save_bot_conversation(uint64_t user_id, const std::string& conversation_id,
+                               const std::string& role, const std::string& content);
+    bool get_bot_conversation(uint64_t user_id, const std::string& conversation_id,
+                              std::vector<std::pair<std::string, std::string>>& messages,
+                              int limit = 20);
+    bool clear_bot_conversation(uint64_t user_id, const std::string& conversation_id);
+    int get_bot_conversation_char_count(uint64_t user_id, const std::string& conversation_id);
+    bool create_new_bot_session(uint64_t user_id, std::string& new_conversation_id);
+    bool get_user_bot_sessions(uint64_t user_id, std::vector<std::string>& session_ids);
+    
 private:
     MYSQL* connection_;
     std::mutex mutex_;

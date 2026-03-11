@@ -27,6 +27,7 @@ struct BotConfig {
     std::string system_prompt;           // 系统提示词
     bool auto_accept_friend = true;      // 自动接受好友请求
     bool enabled = true;                 // 是否启用
+    int max_char_count = 10000;          // 每个会话的最大字符数
 };
 
 /**
@@ -95,6 +96,31 @@ public:
      * 获取机器人配置
      */
     const BotConfig& get_config() const { return config_; }
+    
+    /**
+     * 获取用户当前会话ID
+     */
+    std::string get_user_session_id(uint64_t user_id);
+    
+    /**
+     * 设置用户当前会话ID
+     */
+    void set_user_session_id(uint64_t user_id, const std::string& session_id);
+    
+    /**
+     * 创建新会话
+     */
+    std::string create_new_session(uint64_t user_id);
+    
+    /**
+     * 获取用户所有会话列表
+     */
+    std::vector<std::string> get_user_sessions(uint64_t user_id);
+    
+    /**
+     * 检查会话是否超过字数限制
+     */
+    bool is_session_over_limit(uint64_t user_id, const std::string& session_id);
 
 private:
     /**
@@ -118,6 +144,9 @@ private:
     
     // 记录正在处理的消息，避免重复处理
     std::unordered_set<uint64_t> processing_messages_;
+    
+    // 用户当前会话ID映射
+    std::unordered_map<uint64_t, std::string> user_sessions_;
 };
 
 } // namespace chat

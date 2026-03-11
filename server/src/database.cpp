@@ -216,6 +216,23 @@ bool Database::init_tables() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     )";
     
+    // 机器人聊天记录表
+    const char* create_bot_conversations = R"(
+        CREATE TABLE IF NOT EXISTS bot_conversations (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id BIGINT UNSIGNED NOT NULL,
+            conversation_id VARCHAR(64) NOT NULL,
+            role VARCHAR(16) NOT NULL,
+            content TEXT NOT NULL,
+            char_count INT UNSIGNED DEFAULT 0,
+            created_at BIGINT NOT NULL,
+            INDEX idx_user_id (user_id),
+            INDEX idx_conversation_id (conversation_id),
+            INDEX idx_created_at (created_at),
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    )";
+    
     if (mysql_query(connection_, create_users) != 0) {
         std::cerr << "Failed to create users table: " << mysql_error(connection_) << std::endl;
         return false;
@@ -257,6 +274,12 @@ bool Database::init_tables() {
         return false;
     }
     std::cerr << "Created media_files table" << std::endl;
+    
+    if (mysql_query(connection_, create_bot_conversations) != 0) {
+        std::cerr << "Failed to create bot_conversations table: " << mysql_error(connection_) << std::endl;
+        return false;
+    }
+    std::cerr << "Created bot_conversations table" << std::endl;
     
     return true;
 }
@@ -1150,29 +1173,323 @@ bool Database::save_media_file(uint64_t user_id, const std::string& file_name,
 }
 
 bool Database::get_media_file(uint64_t file_id, std::string& file_path, MediaType& type) {
+
     std::lock_guard<std::mutex> lock(mutex_);
+
     
+
     std::ostringstream sql;
+
     sql << "SELECT file_path, media_type FROM media_files WHERE file_id = " << file_id;
+
     
+
     if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
         return false;
+
     }
+
     
+
     MYSQL_RES* result = mysql_store_result(connection_);
+
     if (!result) return false;
+
     
+
     MYSQL_ROW row = mysql_fetch_row(result);
+
     if (!row) {
+
         mysql_free_result(result);
+
         return false;
+
     }
+
     
+
     file_path = row[0] ? row[0] : "";
+
     type = static_cast<MediaType>(std::stoi(row[1]));
+
     
+
     mysql_free_result(result);
+
     return true;
+
 }
+
+
+
+// ==================== 机器人聊天记录相关实现 ====================
+
+
+
+bool Database::save_bot_conversation(uint64_t user_id, const std::string& conversation_id,
+
+                                     const std::string& role, const std::string& content) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    int64_t now = get_current_timestamp();
+
+    std::string escaped_conv_id = escape_string(conversation_id);
+
+    std::string escaped_role = escape_string(role);
+
+    std::string escaped_content = escape_string(content);
+
+    int char_count = static_cast<int>(content.size());
+
+    
+
+    std::ostringstream sql;
+
+    sql << "INSERT INTO bot_conversations (user_id, conversation_id, role, content, "
+
+        << "char_count, created_at) VALUES (" << user_id << ", '" << escaped_conv_id 
+
+        << "', '" << escaped_role << "', '" << escaped_content << "', "
+
+        << char_count << ", " << now << ")";
+
+    
+
+    if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+        std::cerr << "Failed to save bot conversation: " << mysql_error(connection_) << std::endl;
+
+        return false;
+
+    }
+
+    
+
+    return true;
+
+}
+
+
+
+bool Database::get_bot_conversation(uint64_t user_id, const std::string& conversation_id,
+
+                                    std::vector<std::pair<std::string, std::string>>& messages,
+
+                                    int limit) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    std::string escaped_conv_id = escape_string(conversation_id);
+
+    
+
+    std::ostringstream sql;
+
+    sql << "SELECT role, content FROM bot_conversations "
+
+        << "WHERE user_id = " << user_id << " AND conversation_id = '" << escaped_conv_id << "' "
+
+        << "ORDER BY created_at ASC LIMIT " << limit;
+
+    
+
+    if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+        std::cerr << "Failed to get bot conversation: " << mysql_error(connection_) << std::endl;
+
+        return false;
+
+    }
+
+    
+
+    MYSQL_RES* result = mysql_store_result(connection_);
+
+    if (!result) return false;
+
+    
+
+    MYSQL_ROW row;
+
+    while ((row = mysql_fetch_row(result))) {
+
+        std::string role = row[0] ? row[0] : "";
+
+        std::string content = row[1] ? row[1] : "";
+
+        messages.push_back({role, content});
+
+    }
+
+    
+
+    mysql_free_result(result);
+
+    return true;
+
+}
+
+
+
+bool Database::clear_bot_conversation(uint64_t user_id, const std::string& conversation_id) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    std::string escaped_conv_id = escape_string(conversation_id);
+
+    
+
+    std::ostringstream sql;
+
+    sql << "DELETE FROM bot_conversations "
+
+        << "WHERE user_id = " << user_id << " AND conversation_id = '" << escaped_conv_id << "'";
+
+    
+
+    if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+        return false;
+
+    }
+
+    
+
+    return true;
+
+}
+
+
+
+int Database::get_bot_conversation_char_count(uint64_t user_id, const std::string& conversation_id) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    std::string escaped_conv_id = escape_string(conversation_id);
+
+    
+
+    std::ostringstream sql;
+
+    sql << "SELECT SUM(char_count) FROM bot_conversations "
+
+        << "WHERE user_id = " << user_id << " AND conversation_id = '" << escaped_conv_id << "'";
+
+    
+
+    if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+        return 0;
+
+    }
+
+    
+
+    MYSQL_RES* result = mysql_store_result(connection_);
+
+    if (!result) return 0;
+
+    
+
+    MYSQL_ROW row = mysql_fetch_row(result);
+
+    int count = 0;
+
+    if (row && row[0]) {
+
+        count = std::stoi(row[0]);
+
+    }
+
+    
+
+    mysql_free_result(result);
+
+    return count;
+
+}
+
+
+
+bool Database::create_new_bot_session(uint64_t user_id, std::string& new_conversation_id) {
+
+    // 生成新的会话ID: user_{user_id}_{timestamp}
+
+    int64_t now = get_current_timestamp();
+
+    std::ostringstream ss;
+
+    ss << "user_" << user_id << "_" << now;
+
+    new_conversation_id = ss.str();
+
+    return true;
+
+}
+
+
+
+bool Database::get_user_bot_sessions(uint64_t user_id, std::vector<std::string>& session_ids) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    std::ostringstream sql;
+
+    sql << "SELECT DISTINCT conversation_id FROM bot_conversations "
+
+        << "WHERE user_id = " << user_id << " ORDER BY created_at DESC";
+
+    
+
+    if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+        return false;
+
+    }
+
+    
+
+    MYSQL_RES* result = mysql_store_result(connection_);
+
+    if (!result) return false;
+
+    
+
+    MYSQL_ROW row;
+
+    while ((row = mysql_fetch_row(result))) {
+
+        if (row[0]) {
+
+            session_ids.push_back(row[0]);
+
+        }
+
+    }
+
+    
+
+    mysql_free_result(result);
+
+    return true;
+
+}
+
+
+
+
 
 } // namespace chat
