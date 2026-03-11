@@ -1,5 +1,7 @@
 #include "deepseek_client.hpp"
 #include <iostream>
+#include <thread>
+#include <future>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
 
@@ -153,9 +155,9 @@ std::string DeepSeekClient::http_post(const std::string& host, const std::string
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
-    // 超时配置
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+    // 超时配置 - 减少超时时间避免阻塞服务器
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     
     // 执行请求
     CURLcode res = curl_easy_perform(curl);
@@ -234,13 +236,16 @@ DeepSeekResponse DeepSeekClient::chat_sync(const std::string& user_message,
 void DeepSeekClient::chat(const std::string& user_message,
                           const std::string& conversation_id,
                           ResponseCallback callback) {
-    // 在 io_context 中异步执行
-    asio::post(io_context_, [this, user_message, conversation_id, callback]() {
+    // 使用独立线程执行 HTTP 请求，避免阻塞 io_context 工作线程
+    std::thread([this, user_message, conversation_id, callback]() {
         auto response = chat_sync(user_message, conversation_id);
-        if (callback) {
-            callback(response);
-        }
-    });
+        // 回调需要在 io_context 线程中执行
+        asio::post(io_context_, [callback, response]() {
+            if (callback) {
+                callback(response);
+            }
+        });
+    }).detach();
 }
 
 } // namespace chat
