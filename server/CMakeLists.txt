@@ -16,6 +16,10 @@ pkg_check_modules(CURL REQUIRED libcurl)
 find_package(nlohmann_json 3.2.0 REQUIRED)
 find_path(ASIO_INCLUDE_DIR NAMES asio.hpp PATHS /usr/include)
 
+# QuickJS 库
+set(QUICKJS_INCLUDE_DIR /usr/local/include/quickjs)
+set(QUICKJS_LIBRARY /usr/local/lib/quickjs/libquickjs.a)
+
 # 服务器可执行文件
 add_executable(chat_server
     src/main.cpp
@@ -28,6 +32,7 @@ add_executable(chat_server
     src/friend_manager.cpp
     src/deepseek_client.cpp
     src/bot_manager.cpp
+    src/js_bot.cpp
 )
 
 target_include_directories(chat_server PRIVATE
@@ -35,6 +40,7 @@ target_include_directories(chat_server PRIVATE
     ${ASIO_INCLUDE_DIR}
     ${MYSQL_INCLUDE_DIRS}
     ${CURL_INCLUDE_DIRS}
+    ${QUICKJS_INCLUDE_DIR}
 )
 
 target_link_libraries(chat_server PRIVATE
@@ -44,6 +50,9 @@ target_link_libraries(chat_server PRIVATE
     ${MYSQL_LIBRARIES}
     ${CURL_LIBRARIES}
     nlohmann_json::nlohmann_json
+    ${QUICKJS_LIBRARY}
+    dl
+    m
 )
 
 target_compile_definitions(chat_server PRIVATE

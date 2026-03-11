@@ -35,7 +35,10 @@ class _ChatScreenState extends State<ChatScreen> {
   
   bool _showEmoji = false;
   bool _isUploading = false;
-
+  bool _showMentionList = false;
+  List<Map<String, dynamic>> _groupMembers = [];
+  List<int> _mentionedUserIds = [];
+  
   @override
   void initState() {
     super.initState();
@@ -44,6 +47,22 @@ class _ChatScreenState extends State<ChatScreen> {
       context.read<ChatService>().setCurrentChatScreen(widget.peerId, true);
     });
     _loadMessages();
+    
+    // 如果是群聊，加载成员列表
+    if (widget.isGroup) {
+      _loadGroupMembers();
+    }
+  }
+  
+  /// 加载群成员列表
+  Future<void> _loadGroupMembers() async {
+    final chatService = context.read<ChatService>();
+    final members = await chatService.getGroupMembers(widget.peerId);
+    if (mounted) {
+      setState(() {
+        _groupMembers = members;
+      });
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -78,13 +97,93 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatService = context.read<ChatService>();
     
     if (widget.isGroup) {
-      chatService.sendGroupMessage(widget.peerId, text);
+      // 发送群消息，包含 @成员 信息
+      chatService.sendGroupMessage(widget.peerId, text, mentionedUsers: _mentionedUserIds);
     } else {
       chatService.sendPrivateMessage(widget.peerId, text);
     }
 
     _messageController.clear();
+    _mentionedUserIds = [];  // 清空 @列表
     _scrollToBottom();
+  }
+  
+  /// 显示 @成员 选择对话框
+  void _showMentionDialog() {
+    if (_groupMembers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('正在加载成员列表...')),
+      );
+      _loadGroupMembers();
+      return;
+    }
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        constraints: BoxConstraints(maxHeight: 300),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '选择要@的成员',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('完成'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _groupMembers.length,
+                itemBuilder: (context, index) {
+                  final member = _groupMembers[index];
+                  final userId = member['user_id'] as int;
+                  final nickname = member['nickname'] as String? ?? '用户';
+                  final isSelected = _mentionedUserIds.contains(userId);
+                  
+                  return ListTile(
+                    leading: CircleAvatar(
+                      child: Text(nickname.isNotEmpty ? nickname[0] : '?'),
+                    ),
+                    title: Text(nickname),
+                    trailing: isSelected
+                        ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                        : Icon(Icons.circle_outlined, color: Theme.of(context).colorScheme.outline),
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _mentionedUserIds.remove(userId);
+                        } else {
+                          _mentionedUserIds.add(userId);
+                          // 在输入框中添加 @提及
+                          final currentText = _messageController.text;
+                          _messageController.text = '$currentText@$nickname ';
+                          _messageController.selection = TextSelection.fromPosition(
+                            TextPosition(offset: _messageController.text.length),
+                          );
+                        }
+                      });
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -217,6 +316,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       },
                     ),
                     
+                    // @成员按钮（仅群聊显示）
+                    if (widget.isGroup)
+                      IconButton(
+                        icon: const Icon(Icons.alternate_email),
+                        onPressed: _showMentionDialog,
+                        tooltip: '@成员',
+                      ),
+                    
                     // 输入框
                     Expanded(
                       child: TextField(
@@ -281,119 +388,297 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageItem(Message message, bool isMe) {
+    // 格式化时间
+    String timeStr = _formatMessageTime(message.createdAt);
+    
+    // 解析 @成员 信息
+    List<int> mentionedUsers = [];
+    if (message.extra.isNotEmpty) {
+      try {
+        final extra = message.extra;
+        if (extra.contains('mentioned_users')) {
+          final regex = RegExp(r'"mentioned_users"\s*:\s*\[([^\]]*)\]');
+          final match = regex.firstMatch(extra);
+          if (match != null) {
+            final usersStr = match.group(1) ?? '';
+            final userRegex = RegExp(r'(\d+)');
+            for (final m in userRegex.allMatches(usersStr)) {
+              mentionedUsers.add(int.parse(m.group(1)!));
+            }
+          }
+        }
+      } catch (e) {
+        // 解析失败，忽略
+      }
+    }
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isMe) ...[
-            CircleAvatar(
-              radius: 16,
-              child: Text(widget.peerName[0]),
-            ),
-            const SizedBox(width: 8),
-          ],
-          
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isMe
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(20).copyWith(
-                  bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
-                  bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (message.isImage)
-                    GestureDetector(
-                      onTap: () => _showImagePreview(message.mediaUrl),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: _buildImageWidget(message.mediaUrl),
-                      ),
-                    )
-                  else if (message.isFile)
-                    GestureDetector(
-                      onTap: () => _downloadFile(message),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getFileIcon(message.content),
-                              size: 40,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 12),
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    message.content,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '点击下载',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.download,
-                              size: 20,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    Text(
-                      message.content,
-                      style: TextStyle(
-                        color: isMe
-                          ? Theme.of(context).colorScheme.onPrimaryContainer
-                          : Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                ],
+          // 时间显示
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              timeStr,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
           
-          if (isMe) ...[
-            const SizedBox(width: 8),
-            Icon(
-              _getStatusIcon(message.status),
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ],
+          Row(
+            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isMe) ...[
+                CircleAvatar(
+                  radius: 16,
+                  child: Text(widget.peerName[0]),
+                ),
+                const SizedBox(width: 8),
+              ],
+              
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isMe
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(20).copyWith(
+                      bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
+                      bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 群聊时显示发送者名称
+                      if (widget.isGroup && !isMe)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: FutureBuilder<String>(
+                            future: _getSenderName(message.senderId),
+                            builder: (context, snapshot) {
+                              return Text(
+                                snapshot.data ?? '用户',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      
+                      if (message.isImage)
+                        GestureDetector(
+                          onTap: () => _showImagePreview(message.mediaUrl),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _buildImageWidget(message.mediaUrl),
+                          ),
+                        )
+                      else if (message.isFile)
+                        GestureDetector(
+                          onTap: () => _downloadFile(message),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getFileIcon(message.content),
+                                  size: 40,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        message.content,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '点击下载',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.download,
+                                  size: 20,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        _buildTextWithMentions(message.content, mentionedUsers),
+                    ],
+                  ),
+                ),
+              ),
+              
+              if (isMe) ...[
+                const SizedBox(width: 8),
+                // 已读状态
+                _buildReadStatus(message.status),
+              ],
+            ],
+          ),
         ],
       ),
     );
+  }
+  
+  /// 格式化消息时间
+  String _formatMessageTime(int timestamp) {
+    if (timestamp == 0) return '';
+    
+    final messageTime = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    final now = DateTime.now();
+    final difference = now.difference(messageTime);
+    
+    if (difference.inDays == 0) {
+      // 今天，只显示时间
+      return '${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      // 昨天
+      return '昨天 ${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays < 7) {
+      // 一周内，显示星期几
+      const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+      return '${weekdays[messageTime.weekday - 1]} ${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
+    } else {
+      // 超过一周，显示日期
+      return '${messageTime.month}/${messageTime.day} ${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
+    }
+  }
+  
+  /// 构建已读状态
+  Widget _buildReadStatus(int status) {
+    IconData icon;
+    Color color;
+    String tooltip;
+    
+    switch (status) {
+      case 0: // sending
+        icon = Icons.access_time;
+        color = Theme.of(context).colorScheme.onSurfaceVariant;
+        tooltip = '发送中';
+        break;
+      case 1: // sent
+        icon = Icons.check;
+        color = Theme.of(context).colorScheme.onSurfaceVariant;
+        tooltip = '已发送';
+        break;
+      case 2: // delivered
+        icon = Icons.done_all;
+        color = Theme.of(context).colorScheme.onSurfaceVariant;
+        tooltip = '已送达';
+        break;
+      case 3: // read
+        icon = Icons.done_all;
+        color = Theme.of(context).colorScheme.primary;
+        tooltip = '已读';
+        break;
+      case 4: // failed
+        icon = Icons.error_outline;
+        color = Theme.of(context).colorScheme.error;
+        tooltip = '发送失败';
+        break;
+      default:
+        icon = Icons.access_time;
+        color = Theme.of(context).colorScheme.onSurfaceVariant;
+        tooltip = '';
+    }
+    
+    return Tooltip(
+      message: tooltip,
+      child: Icon(icon, size: 16, color: color),
+    );
+  }
+  
+  /// 构建带 @成员 的文本
+  Widget _buildTextWithMentions(String content, List<int> mentionedUsers) {
+    if (mentionedUsers.isEmpty) {
+      return Text(
+        content,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      );
+    }
+    
+    // 解析 @用户 格式
+    final spans = <InlineSpan>[];
+    final mentionRegex = RegExp(r'@(\S+?)(?=\s|$)');
+    int lastEnd = 0;
+    
+    for (final match in mentionRegex.allMatches(content)) {
+      // 添加普通文本
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: content.substring(lastEnd, match.start),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ));
+      }
+      
+      // 添加 @提及
+      spans.add(TextSpan(
+        text: match.group(0),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w500,
+        ),
+      ));
+      
+      lastEnd = match.end;
+    }
+    
+    // 添加剩余文本
+    if (lastEnd < content.length) {
+      spans.add(TextSpan(
+        text: content.substring(lastEnd),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      ));
+    }
+    
+    return Text.rich(
+      TextSpan(children: spans),
+    );
+  }
+  
+  /// 获取发送者名称
+  Future<String> _getSenderName(int senderId) async {
+    // 简单实现，可以从 ChatService 获取用户信息
+    return '用户$senderId';
   }
   
   /// 构建图片组件

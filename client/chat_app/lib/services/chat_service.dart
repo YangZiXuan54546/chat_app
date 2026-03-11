@@ -29,6 +29,7 @@ class ChatService extends ChangeNotifier {
   final Map<int, User> _users = {};
   final Map<int, Group> _groups = {};
   final Map<int, List<Message>> _messages = {}; // key: peerId or -groupId
+  final Map<int, List<int>> _groupMembers = {}; // 群成员ID列表
   final List<Friend> _friends = [];
   final List<Friend> _friendRequests = [];
   final List<Conversation> _conversations = [];
@@ -527,13 +528,20 @@ class ChatService extends ChangeNotifier {
   }
 
   /// 发送群聊消息
-  void sendGroupMessage(int groupId, String content, {int mediaType = 0, String mediaUrl = ''}) {
-    _network.send(MessageType.groupMessage, {
+  void sendGroupMessage(int groupId, String content, {int mediaType = 0, String mediaUrl = '', List<int>? mentionedUsers}) {
+    final body = {
       'group_id': groupId,
       'content': content,
       'media_type': mediaType,
       'media_url': mediaUrl,
-    });
+    };
+    
+    // 添加 @成员 信息
+    if (mentionedUsers != null && mentionedUsers.isNotEmpty) {
+      body['mentioned_users'] = mentionedUsers;
+    }
+    
+    _network.send(MessageType.groupMessage, body);
   }
 
   /// 处理群聊消息
@@ -1064,15 +1072,50 @@ class ChatService extends ChangeNotifier {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
         final membersJson = data['members'] as List<dynamic>? ?? [];
+        final groupId = data['group_id'] as int? ?? 0;
+        
+        // 存储群成员 ID 列表
+        final memberIds = <int>[];
+        
         // 存储群成员信息到本地
         for (final item in membersJson) {
           final memberData = item as Map<String, dynamic>;
           final user = User.fromJson(memberData);
           _users[user.userId] = user;
+          memberIds.add(user.userId);
         }
+        
+        _groupMembers[groupId] = memberIds;
       }
     }
     notifyListeners();
+  }
+  
+  /// 获取群成员列表
+  List<User> getGroupMembersList(int groupId) {
+    final memberIds = _groupMembers[groupId] ?? [];
+    return memberIds.map((id) => _users[id]).whereType<User>().toList();
+  }
+  
+  /// 请求群成员列表并等待响应
+  Future<List<User>> fetchGroupMembers(int groupId) async {
+    // 先检查是否已有缓存
+    if (_groupMembers.containsKey(groupId)) {
+      return getGroupMembersList(groupId);
+    }
+    
+    // 发送请求
+    getGroupMembers(groupId);
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_groupMembers.containsKey(groupId)) {
+        return getGroupMembersList(groupId);
+      }
+    }
+    
+    return [];
   }
   
   // ==================== 媒体上传相关 ====================
