@@ -162,8 +162,9 @@ bool BotManager::handle_friend_request(uint64_t from_user_id) {
     }
     
     // 接受好友请求
-    // 这里需要在数据库中建立好友关系
-    if (database_->accept_friend_request(from_user_id, config_.bot_user_id)) {
+    // accept_friend_request(acceptor, requester): 更新 requester->acceptor 的请求状态并添加反向关系
+    // from_user_id 是请求者，bot 是接受者
+    if (database_->accept_friend_request(config_.bot_user_id, from_user_id)) {
         std::cout << "Bot accepted friend request from user " << from_user_id << std::endl;
         return true;
     }

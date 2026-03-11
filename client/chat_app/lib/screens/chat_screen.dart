@@ -37,6 +37,27 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isUploading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  Future<void> _loadMessages() async {
+    final chatService = context.read<ChatService>();
+    
+    // 先从本地加载消息（离线可用）
+    await chatService.loadLocalMessages(widget.peerId, isGroup: widget.isGroup);
+    
+    // 然后从服务器加载最新消息
+    chatService.loadHistory(widget.peerId, isGroup: widget.isGroup);
+    
+    // 滚动到底部
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
+  }
+
+  @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
