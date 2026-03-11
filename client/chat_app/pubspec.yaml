@@ -39,6 +39,7 @@ dependencies:
   emoji_picker_flutter: ^1.6.1
   flutter_link_previewer: ^3.2.2
   url_launcher: ^6.2.1
+  flutter_local_notifications: ^16.3.0
   
   # 工具
   intl: ^0.18.1

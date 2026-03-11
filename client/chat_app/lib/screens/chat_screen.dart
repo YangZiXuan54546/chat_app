@@ -39,6 +39,10 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // 设置当前聊天界面状态（避免收到消息时显示通知）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ChatService>().setCurrentChatScreen(widget.peerId, true);
+    });
     _loadMessages();
   }
 
@@ -59,6 +63,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // 清除当前聊天界面状态
+    context.read<ChatService>().setCurrentChatScreen(0, false);
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();

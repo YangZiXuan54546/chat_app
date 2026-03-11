@@ -21,6 +21,12 @@
     <!-- 震动权限 -->
     <uses-permission android:name="android.permission.VIBRATE"/>
     
+    <!-- 通知权限 (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    
+    <!-- 开机启动权限 (用于启动通知服务) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    
     <application
         android:label="Chat App"
         android:name="${applicationName}"

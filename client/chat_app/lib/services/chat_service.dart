@@ -6,10 +6,12 @@ import '../models/models.dart';
 import '../models/protocol.dart';
 import 'network_service.dart';
 import 'message_database.dart';
+import 'notification_service.dart';
 
 class ChatService extends ChangeNotifier {
   final NetworkService _network = NetworkService();
   final MessageDatabase _messageDb = MessageDatabase();
+  final NotificationService _notificationService = NotificationService();
   
   User? _currentUser;
   bool _isConnected = false;
@@ -82,12 +84,28 @@ class ChatService extends ChangeNotifier {
   
   bool get isReconnecting => _isReconnecting;
   bool get reconnectLoginSuccess => _reconnectLoginSuccess;
+  
+  // 当前聊天界面状态（用于避免在自己聊天的页面显示通知）
+  int _currentChatPeerId = 0;
+  bool _isInChatScreen = false;
+  
+  int get currentChatPeerId => _currentChatPeerId;
+  bool get isInChatScreen => _isInChatScreen;
+  
+  /// 设置当前聊天界面状态
+  void setCurrentChatScreen(int peerId, bool inScreen) {
+    _currentChatPeerId = peerId;
+    _isInChatScreen = inScreen;
+  }
 
   ChatService() {
     _init();
   }
 
   void _init() {
+    // 初始化通知服务
+    _notificationService.init();
+    
     _network.addConnectionCallback((connected) {
       final wasConnected = _isConnected;
       _isConnected = connected;
@@ -184,6 +202,9 @@ class ChatService extends ChangeNotifier {
         break;
       case MessageType.friendAdd:
         _handleFriendRequestNotification(body);
+        break;
+      case MessageType.friendAccept:
+        _handleFriendAcceptNotification(body);
         break;
       case MessageType.friendAcceptResponse:
         _handleFriendAcceptResponse(body);
@@ -385,6 +406,38 @@ class ChatService extends ChangeNotifier {
     _messageDb.saveMessage(message);
     
     _updateConversation(message);
+    
+    // 发送通知（如果不在当前聊天界面且不是自己发的消息）
+    if (message.senderId != currentUserId) {
+      final peerId = message.senderId;
+      if (!_isInChatScreen || _currentChatPeerId != peerId) {
+        // 获取发送者名称
+        String senderName = '用户';
+        if (_users.containsKey(peerId)) {
+          senderName = _users[peerId]!.nickname.isNotEmpty 
+              ? _users[peerId]!.nickname 
+              : _users[peerId]!.username;
+        }
+        
+        // 根据消息类型显示不同的通知内容
+        String notificationBody;
+        if (message.isImage) {
+          notificationBody = '[图片]';
+        } else if (message.isFile) {
+          notificationBody = '[文件] ${message.content}';
+        } else {
+          notificationBody = message.content;
+        }
+        
+        _notificationService.showMessageNotification(
+          id: peerId,
+          title: senderName,
+          body: notificationBody,
+          payload: 'chat_$peerId',
+        );
+      }
+    }
+    
     notifyListeners();
   }
 
@@ -482,6 +535,43 @@ class ChatService extends ChangeNotifier {
     _messageDb.saveMessage(message);
     
     _updateConversation(message);
+    
+    // 发送通知（如果不在当前群聊界面且不是自己发的消息）
+    if (message.senderId != currentUserId) {
+      final groupId = message.groupId;
+      if (!_isInChatScreen || _currentChatPeerId != groupId) {
+        // 获取群组名称
+        String groupName = _groups.containsKey(groupId) 
+            ? _groups[groupId]!.groupName 
+            : '群聊';
+        
+        // 获取发送者名称
+        String senderName = '用户';
+        if (_users.containsKey(message.senderId)) {
+          senderName = _users[message.senderId]!.nickname.isNotEmpty 
+              ? _users[message.senderId]!.nickname 
+              : _users[message.senderId]!.username;
+        }
+        
+        // 根据消息类型显示不同的通知内容
+        String notificationBody;
+        if (message.isImage) {
+          notificationBody = '$senderName: [图片]';
+        } else if (message.isFile) {
+          notificationBody = '$senderName: [文件] ${message.content}';
+        } else {
+          notificationBody = '$senderName: ${message.content}';
+        }
+        
+        _notificationService.showMessageNotification(
+          id: groupId + 10000, // 群组ID加偏移避免与私聊冲突
+          title: groupName,
+          body: notificationBody,
+          payload: 'group_$groupId',
+        );
+      }
+    }
+    
     notifyListeners();
   }
 
@@ -810,6 +900,29 @@ class ChatService extends ChangeNotifier {
   void _handleFriendRequestNotification(Map<String, dynamic> body) {
     // 刷新好友请求列表
     _loadFriendRequests();
+    
+    // 发送好友请求通知
+    final fromUserId = body['from_user_id'] as int?;
+    final fromUsername = body['from_username'] as String? ?? '';
+    final fromNickname = body['from_nickname'] as String?;
+    
+    if (fromUserId != null) {
+      _notificationService.showFriendRequestNotification(
+        id: fromUserId + 20000, // 加偏移避免与其他通知冲突
+        username: fromUsername,
+        nickname: fromNickname,
+      );
+    }
+    
+    notifyListeners();
+  }
+
+  /// 处理好友请求被接受的通知（对方接受了你的好友请求）
+  void _handleFriendAcceptNotification(Map<String, dynamic> body) {
+    // 刷新好友列表和好友请求列表
+    _loadFriendList();
+    _loadFriendRequests();
+    debugPrint('Friend request accepted: $body');
     notifyListeners();
   }
 

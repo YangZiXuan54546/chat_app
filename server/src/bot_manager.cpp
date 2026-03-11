@@ -166,6 +166,26 @@ bool BotManager::handle_friend_request(uint64_t from_user_id) {
     // from_user_id 是请求者，bot 是接受者
     if (database_->accept_friend_request(config_.bot_user_id, from_user_id)) {
         std::cout << "Bot accepted friend request from user " << from_user_id << std::endl;
+        
+        // 通知用户好友请求已被接受
+        if (server_) {
+            // 构建通知消息
+            json notification = {
+                {"friend_id", config_.bot_user_id},
+                {"friend_username", config_.bot_username},
+                {"friend_nickname", config_.bot_nickname},
+                {"timestamp", std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count()}
+            };
+            
+            // 发送好友请求接受通知给用户
+            server_->send_to_user(from_user_id,
+                Protocol::serialize(MessageType::FRIEND_ACCEPT, 0, notification));
+            
+            std::cout << "Sent friend accept notification to user " << from_user_id << std::endl;
+        }
+        
         return true;
     }
     
