@@ -11,36 +11,46 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _initializing = false;
 
-  /// 初始化通知服务
+  /// 初始化通知服务（非阻塞）
   Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized || _initializing) return;
+    _initializing = true;
 
-    // Android 初始化设置
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    try {
+      // Android 初始化设置
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // iOS 初始化设置
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+      // iOS 初始化设置
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
 
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
 
-    await _notifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-    );
+      await _notifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
 
-    // 请求权限
-    await _requestPermissions();
+      // 非阻塞请求权限（不等待结果）
+      _requestPermissions().catchError((e) {
+        debugPrint('Permission request error: $e');
+      });
 
-    _initialized = true;
-    debugPrint('NotificationService initialized');
+      _initialized = true;
+      debugPrint('NotificationService initialized');
+    } catch (e) {
+      debugPrint('NotificationService init error: $e');
+    } finally {
+      _initializing = false;
+    }
   }
 
   /// 请求通知权限
