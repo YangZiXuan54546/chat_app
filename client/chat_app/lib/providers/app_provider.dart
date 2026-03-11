@@ -6,10 +6,12 @@ class AppProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _error;
+  ThemeMode _themeMode = ThemeMode.system;
   
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  ThemeMode get themeMode => _themeMode;
 
   /// 初始化应用
   Future<void> init() async {
@@ -21,6 +23,9 @@ class AppProvider extends ChangeNotifier {
     try {
       final storage = StorageService();
       final chatService = ChatService();
+      
+      // 加载主题设置
+      _themeMode = ThemeMode.values[storage.getThemeMode()];
       
       // 尝试自动连接
       final host = storage.serverHost;
@@ -41,6 +46,12 @@ class AppProvider extends ChangeNotifier {
     }
     
     _isLoading = false;
+    notifyListeners();
+  }
+
+  /// 设置主题模式
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
     notifyListeners();
   }
 

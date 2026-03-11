@@ -86,6 +86,16 @@ class StorageService {
   /// 获取token
   String? get token => _prefs?.getString(_keyToken);
 
+  /// 保存主题模式
+  Future<void> saveThemeMode(int mode) async {
+    await _prefs?.setInt('theme_mode', mode);
+  }
+
+  /// 获取主题模式
+  int getThemeMode() {
+    return _prefs?.getInt('theme_mode') ?? 0;
+  }
+
   /// 清除所有数据
   Future<void> clearAll() async {
     await _prefs?.clear();
