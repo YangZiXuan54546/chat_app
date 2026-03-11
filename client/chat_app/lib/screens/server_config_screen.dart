@@ -150,7 +150,7 @@ class _ServerConfigScreenState extends State<ServerConfigScreen> {
                 // Reset button
                 OutlinedButton(
                   onPressed: () {
-                    _hostController.text = 'localhost';
+                    _hostController.text = '10.0.2.2';
                     _portController.text = '8888';
                   },
                   child: const Text('恢复默认'),
