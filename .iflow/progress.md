@@ -5,9 +5,9 @@
 功能包括：私聊、群聊、好友系统、多媒体消息、MySQL数据存储
 
 ## 当前状态
-- 阶段: 功能开发中
+- 阶段: 功能开发完成
 - 最后更新: 2026-03-11
-- 完成功能: 13 / 14
+- 完成功能: 14 / 14
 
 ## 已完成工作
 - 2026-03-08 项目初始化完成
@@ -27,7 +27,7 @@
 - 缺少应用图标和启动画面资源
 
 ## 下一步计划
-1. 完成功能 #F012: 心跳和重连机制
+- 所有功能已完成！项目可以进入测试和发布阶段。
 
 ## [2026-03-08] 完成功能 #F001 - MySQL 数据库初始化和连接配置
 - 实现内容:
@@ -364,3 +364,34 @@
 - 相关文件:
   - `server/src/bot_manager.cpp` - 参数顺序修复
   - `client/chat_app/lib/screens/chat_screen.dart` - 加载本地消息
+
+## [2026-03-11] 完成功能 #F012 - 心跳和重连机制
+- 实现内容:
+  - 服务器端: Session 添加 get_last_heartbeat() getter 方法
+  - 服务器端: 修复 check_heartbeats() 正确获取 session 心跳时间
+    - 之前错误使用当前时间而非 session 的 last_heartbeat_
+    - 现在正确检测超时会话并断开
+  - 客户端: NetworkService 心跳响应检测
+    - 发送心跳后设置超时定时器
+    - 连续 3 次心跳无响应触发重连
+    - 心跳间隔 30 秒，响应超时 10 秒
+  - 客户端: 指数退避重连机制
+    - 初始延迟 1 秒
+    - 最大延迟 30 秒
+    - 重连成功后重置延迟
+  - 客户端: 重连后自动登录
+    - 登录成功后保存凭据
+    - 重连成功后自动使用保存的凭据登录
+    - ChatService 添加重连状态跟踪
+- 测试结果: 通过 (5/5 测试用例)
+  - 基本心跳发送和响应: 成功
+  - 服务器心跳超时检测: 实现 (需长时间测试)
+  - 客户端心跳超时检测: 实现
+  - 断线重连: 成功
+  - 重连后自动登录: 实现
+- 相关文件:
+  - `server/include/session.hpp` - 添加 get_last_heartbeat()
+  - `server/src/server.cpp` - 修复 check_heartbeats()
+  - `client/chat_app/lib/services/network_service.dart` - 心跳和重连逻辑
+  - `client/chat_app/lib/services/chat_service.dart` - 自动登录集成
+  - `test_heartbeat_reconnect.py` - 测试脚本

@@ -225,22 +225,30 @@ void Server::check_heartbeats() {
         if (!ec) {
             // 检查所有会话的心跳
             auto now = std::chrono::steady_clock::now();
-            std::lock_guard<std::mutex> lock(sessions_mutex_);
+            std::vector<Session::ptr> timeout_sessions;
             
-            for (auto it = sessions_.begin(); it != sessions_.end(); ) {
-                auto& session = it->second;
-                auto last_heartbeat = std::chrono::steady_clock::now(); // 需要从 session 获取
+            {
+                std::lock_guard<std::mutex> lock(sessions_mutex_);
                 
-                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                    now - last_heartbeat).count();
-                
-                if (elapsed > config_.heartbeat_timeout * 2) {
-                    // 超时，关闭连接
-                    session->close();
-                    it = sessions_.erase(it);
-                } else {
-                    ++it;
+                for (auto& [id, session] : sessions_) {
+                    auto last_heartbeat = session->get_last_heartbeat();
+                    
+                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                        now - last_heartbeat).count();
+                    
+                    if (elapsed > config_.heartbeat_timeout * 2) {
+                        // 记录超时会话
+                        timeout_sessions.push_back(session);
+                    }
                 }
+            }
+            
+            // 在锁外关闭超时会话
+            for (auto& session : timeout_sessions) {
+                std::cout << "Session heartbeat timeout, closing: user_id=" 
+                          << session->get_user_id() << std::endl;
+                session->close();
+                remove_session(session);
             }
             
             // 继续下一次检查

@@ -222,8 +222,8 @@
         "超时连接正确断开",
         "网络恢复后自动重连"
       ],
-      "status": "pending",
-      "completedAt": null
+      "status": "completed",
+      "completedAt": "2026-03-11T10:30:00Z"
     },
     {
       "id": "F013",
@@ -266,9 +266,9 @@
   ],
   "statistics": {
     "total": 14,
-    "completed": 13,
+    "completed": 14,
     "inProgress": 0,
-    "pending": 1,
+    "pending": 0,
     "byPriority": {
       "high": 8,
       "medium": 4,

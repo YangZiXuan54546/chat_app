@@ -39,6 +39,9 @@ public:
     
     Socket& get_socket() { return socket_; }
     
+    // 获取最后心跳时间
+    std::chrono::steady_clock::time_point get_last_heartbeat() const { return last_heartbeat_; }
+    
     void set_managers(std::shared_ptr<UserManager> user_manager,
                       std::shared_ptr<MessageManager> message_manager,
                       std::shared_ptr<GroupManager> group_manager,

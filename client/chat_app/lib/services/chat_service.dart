@@ -76,17 +76,74 @@ class ChatService extends ChangeNotifier {
   
   int get currentUserId => _currentUser?.userId ?? 0;
 
+  // 重连状态
+  bool _isReconnecting = false;
+  bool _reconnectLoginSuccess = false;
+  
+  bool get isReconnecting => _isReconnecting;
+  bool get reconnectLoginSuccess => _reconnectLoginSuccess;
+
   ChatService() {
     _init();
   }
 
   void _init() {
     _network.addConnectionCallback((connected) {
+      final wasConnected = _isConnected;
       _isConnected = connected;
+      
+      if (!connected && wasConnected && _isAuthenticated) {
+        // 连接断开且之前已登录，开始重连
+        _isReconnecting = true;
+        _reconnectLoginSuccess = false;
+        debugPrint('Connection lost, will attempt to reconnect...');
+      } else if (connected && _isReconnecting) {
+        // 重连成功，等待自动登录
+        debugPrint('Reconnected, waiting for auto-login...');
+      }
+      
       notifyListeners();
+    });
+    
+    // 设置重连登录回调
+    _network.setReconnectLoginCallback((username, password) async {
+      await _handleReconnectLogin(username, password);
     });
 
     _network.addMessageCallback(_handleMessage);
+  }
+  
+  /// 处理重连后的自动登录
+  Future<void> _handleReconnectLogin(String username, String password) async {
+    debugPrint('Auto-login after reconnect: $username');
+    
+    _reconnectLoginSuccess = false;
+    _loginSuccess = false;
+    _loginError = null;
+    
+    _network.send(MessageType.login, {
+      'username': username,
+      'password': password,
+    });
+    
+    // 等待登录响应
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_loginSuccess || _loginError != null) {
+        break;
+      }
+    }
+    
+    if (_loginSuccess) {
+      debugPrint('Auto-login after reconnect successful');
+      _reconnectLoginSuccess = true;
+      _isReconnecting = false;
+    } else {
+      debugPrint('Auto-login after reconnect failed: $_loginError');
+      _reconnectLoginSuccess = false;
+    }
+    
+    notifyListeners();
   }
 
   /// 处理收到的消息
@@ -225,6 +282,10 @@ class ChatService extends ChangeNotifier {
     for (int i = 0; i < 50; i++) {
       await Future.delayed(const Duration(milliseconds: 100));
       if (_loginSuccess || _loginError != null) {
+        // 登录成功后保存凭据用于重连
+        if (_loginSuccess) {
+          _network.saveCredentials(username, password);
+        }
         return _loginSuccess;
       }
     }
@@ -236,7 +297,10 @@ class ChatService extends ChangeNotifier {
   /// 登出
   void logout() {
     _network.send(MessageType.logout, {});
+    _network.clearCredentials();
     _isAuthenticated = false;
+    _isReconnecting = false;
+    _reconnectLoginSuccess = false;
     _currentUser = null;
     notifyListeners();
   }
@@ -252,6 +316,13 @@ class ChatService extends ChangeNotifier {
         _loginSuccess = true;
         _loginError = null;
         
+        // 如果是重连登录成功
+        if (_isReconnecting) {
+          _reconnectLoginSuccess = true;
+          _isReconnecting = false;
+          debugPrint('Reconnect login successful');
+        }
+        
         // 加载好友列表
         _network.send(MessageType.friendList, {});
         // 加载好友请求列表
@@ -262,6 +333,12 @@ class ChatService extends ChangeNotifier {
     } else {
       _loginSuccess = false;
       _loginError = body['message'] as String? ?? 'Login failed';
+      
+      // 重连登录失败
+      if (_isReconnecting) {
+        _reconnectLoginSuccess = false;
+        debugPrint('Reconnect login failed: $_loginError');
+      }
     }
     notifyListeners();
   }

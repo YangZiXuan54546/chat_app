@@ -22,14 +22,29 @@ class NetworkService {
   final List<ErrorCallback> _errorCallbacks = [];
   
   Timer? _heartbeatTimer;
+  Timer? _heartbeatTimeoutTimer;
   Timer? _reconnectTimer;
   
   String _host = 'localhost';
   int _port = 8888;
   bool _autoReconnect = true;
-  int _reconnectDelay = 3000;
+  int _reconnectDelay = 1000; // 初始重连延迟 1 秒
+  int _maxReconnectDelay = 30000; // 最大重连延迟 30 秒
+  int _heartbeatInterval = 30; // 心跳间隔 30 秒
+  int _heartbeatTimeout = 10; // 心跳响应超时 10 秒
+  int _missedHeartbeats = 0; // 连续未响应的心跳次数
+  int _maxMissedHeartbeats = 3; // 最大允许未响应心跳次数
+  
+  // 保存登录凭据用于重连后自动登录
+  String? _savedUsername;
+  String? _savedPassword;
+  
+  // 重连回调
+  Function(String username, String password)? _onReconnectLogin;
 
   bool get isConnected => _isConnected;
+  String? get savedUsername => _savedUsername;
+  String? get savedPassword => _savedPassword;
 
   /// 添加消息回调
   void addMessageCallback(MessageCallback callback) {
@@ -60,6 +75,23 @@ class NetworkService {
   void removeErrorCallback(ErrorCallback callback) {
     _errorCallbacks.remove(callback);
   }
+  
+  /// 设置重连登录回调
+  void setReconnectLoginCallback(Function(String username, String password) callback) {
+    _onReconnectLogin = callback;
+  }
+  
+  /// 保存登录凭据
+  void saveCredentials(String username, String password) {
+    _savedUsername = username;
+    _savedPassword = password;
+  }
+  
+  /// 清除登录凭据
+  void clearCredentials() {
+    _savedUsername = null;
+    _savedPassword = null;
+  }
 
   /// 连接服务器
   Future<bool> connect(String host, int port) async {
@@ -69,6 +101,8 @@ class NetworkService {
     try {
       _socket = await Socket.connect(host, port);
       _isConnected = true;
+      _missedHeartbeats = 0;
+      _reconnectDelay = 1000; // 重置重连延迟
       
       _notifyConnection(true);
       _startListening();
@@ -172,7 +206,13 @@ class NetworkService {
 
       // 解析并回调
       final body = Protocol.parseBody(bodyData);
-      _notifyMessage(header.type, header.sequence, body);
+      
+      // 处理心跳响应
+      if (header.type == MessageType.heartbeatResponse) {
+        _handleHeartbeatResponse();
+      } else {
+        _notifyMessage(header.type, header.sequence, body);
+      }
     }
   }
 
@@ -187,26 +227,79 @@ class NetworkService {
     }
   }
 
-  /// 安排重连
+  /// 安排重连（指数退避）
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(milliseconds: _reconnectDelay), () {
-      connect(_host, _port);
+    
+    debugPrint('Scheduling reconnect in ${_reconnectDelay}ms');
+    
+    _reconnectTimer = Timer(Duration(milliseconds: _reconnectDelay), () async {
+      debugPrint('Attempting to reconnect...');
+      final success = await connect(_host, _port);
+      
+      if (success && _savedUsername != null && _savedPassword != null) {
+        // 重连成功后自动登录
+        debugPrint('Reconnected, attempting auto-login...');
+        if (_onReconnectLogin != null) {
+          _onReconnectLogin!(_savedUsername!, _savedPassword!);
+        }
+      }
+      
+      if (!success) {
+        // 指数退避增加重连延迟
+        _reconnectDelay = (_reconnectDelay * 2).clamp(1000, _maxReconnectDelay);
+      }
     });
   }
 
   /// 开始心跳
   void _startHeartbeat() {
     _stopHeartbeat();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      send(MessageType.heartbeat, {});
+    _missedHeartbeats = 0;
+    
+    _heartbeatTimer = Timer.periodic(Duration(seconds: _heartbeatInterval), (_) {
+      if (_isConnected) {
+        _sendHeartbeat();
+      }
     });
+  }
+  
+  /// 发送心跳
+  void _sendHeartbeat() {
+    if (!_isConnected) return;
+    
+    debugPrint('Sending heartbeat, missed: $_missedHeartbeats');
+    send(MessageType.heartbeat, {});
+    
+    // 设置心跳超时检测
+    _heartbeatTimeoutTimer?.cancel();
+    _heartbeatTimeoutTimer = Timer(Duration(seconds: _heartbeatTimeout), () {
+      if (_isConnected) {
+        _missedHeartbeats++;
+        debugPrint('Heartbeat timeout, missed: $_missedHeartbeats');
+        
+        if (_missedHeartbeats >= _maxMissedHeartbeats) {
+          // 连续多次心跳无响应，认为连接已断开
+          debugPrint('Too many missed heartbeats, disconnecting...');
+          _handleDisconnect();
+        }
+      }
+    });
+  }
+  
+  /// 处理心跳响应
+  void _handleHeartbeatResponse() {
+    debugPrint('Heartbeat response received');
+    _missedHeartbeats = 0;
+    _heartbeatTimeoutTimer?.cancel();
   }
 
   /// 停止心跳
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _heartbeatTimeoutTimer?.cancel();
+    _heartbeatTimeoutTimer = null;
   }
 
   /// 通知消息
