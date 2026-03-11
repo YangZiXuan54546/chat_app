@@ -346,3 +346,21 @@
   - `server/src/main.cpp` - 启动配置
   - `start_servers.sh` - 启动脚本
   - `test_ai_bot.py` - 测试脚本
+
+## [2026-03-11] Bug 修复 - F013/F014 问题修复
+- 实现内容:
+  - 修复 BotManager::handle_friend_request 参数顺序错误
+    - accept_friend_request(acceptor, requester) 参数含义修正
+    - 机器人作为接受者，用户作为请求者
+    - 之前参数顺序导致无法找到正确的好友请求记录
+  - 完善 F013 本地消息保存功能
+    - 添加 ChatScreen.initState 加载本地消息
+    - 先从本地 Hive 加载消息（离线可用）
+    - 再从服务器加载最新消息同步
+- 测试结果: 通过
+  - 新用户向机器人发送好友请求: 自动接受成功
+  - 好友关系双向建立: 数据库验证正确
+  - 本地消息加载: 进入聊天界面时自动加载
+- 相关文件:
+  - `server/src/bot_manager.cpp` - 参数顺序修复
+  - `client/chat_app/lib/screens/chat_screen.dart` - 加载本地消息
