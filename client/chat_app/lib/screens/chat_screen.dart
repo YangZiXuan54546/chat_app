@@ -36,7 +36,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showEmoji = false;
   bool _isUploading = false;
   bool _showMentionList = false;
-  List<Map<String, dynamic>> _groupMembers = [];
+  List<User> _groupMembers = [];
   List<int> _mentionedUserIds = [];
   
   @override
@@ -150,8 +150,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 itemCount: _groupMembers.length,
                 itemBuilder: (context, index) {
                   final member = _groupMembers[index];
-                  final userId = member['user_id'] as int;
-                  final nickname = member['nickname'] as String? ?? '用户';
+                  final userId = member.userId;
+                  final nickname = member.nickname.isNotEmpty ? member.nickname : '用户';
                   final isSelected = _mentionedUserIds.contains(userId);
                   
                   return ListTile(
