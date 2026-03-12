@@ -1706,35 +1706,1167 @@ bool Database::get_user_bot_sessions(uint64_t user_id, std::vector<std::string>&
 
     
 
-    bool Database::delete_user_key(uint64_t user_id) {
+        bool Database::delete_user_key(uint64_t user_id) {
 
     
 
-        std::lock_guard<std::mutex> lock(mutex_);
+    
 
     
 
-        
+            std::lock_guard<std::mutex> lock(mutex_);
 
     
 
-        std::ostringstream sql;
+    
 
     
 
-        sql << "DELETE FROM user_keys WHERE user_id = " << user_id;
+            
 
     
 
-        
+    
 
     
 
-        return mysql_query(connection_, sql.str().c_str()) == 0;
+            std::ostringstream sql;
 
     
 
-    }
+    
+
+    
+
+            sql << "DELETE FROM user_keys WHERE user_id = " << user_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            return mysql_query(connection_, sql.str().c_str()) == 0;
+
+    
+
+    
+
+    
+
+        }
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+        bool Database::get_message_sender(uint64_t message_id, uint64_t& sender_id, bool& is_group, uint64_t& group_id) {
+
+    
+
+    
+
+    
+
+            std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 先查私聊消息表
+
+    
+
+    
+
+    
+
+            std::ostringstream sql;
+
+    
+
+    
+
+    
+
+            sql << "SELECT sender_id, group_id FROM private_messages WHERE message_id = " << message_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            if (mysql_query(connection_, sql.str().c_str()) == 0) {
+
+    
+
+    
+
+    
+
+                MYSQL_RES* result = mysql_store_result(connection_);
+
+    
+
+    
+
+    
+
+                if (result) {
+
+    
+
+    
+
+    
+
+                    MYSQL_ROW row = mysql_fetch_row(result);
+
+    
+
+    
+
+    
+
+                    if (row) {
+
+    
+
+    
+
+    
+
+                        sender_id = std::stoull(row[0]);
+
+    
+
+    
+
+    
+
+                        is_group = false;
+
+    
+
+    
+
+    
+
+                        group_id = 0;
+
+    
+
+    
+
+    
+
+                        mysql_free_result(result);
+
+    
+
+    
+
+    
+
+                        return true;
+
+    
+
+    
+
+    
+
+                    }
+
+    
+
+    
+
+    
+
+                    mysql_free_result(result);
+
+    
+
+    
+
+    
+
+                }
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 再查群聊消息表
+
+    
+
+    
+
+    
+
+            sql.str("");
+
+    
+
+    
+
+    
+
+            sql << "SELECT sender_id, group_id FROM group_messages WHERE message_id = " << message_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            if (mysql_query(connection_, sql.str().c_str()) == 0) {
+
+    
+
+    
+
+    
+
+                MYSQL_RES* result = mysql_store_result(connection_);
+
+    
+
+    
+
+    
+
+                if (result) {
+
+    
+
+    
+
+    
+
+                    MYSQL_ROW row = mysql_fetch_row(result);
+
+    
+
+    
+
+    
+
+                    if (row) {
+
+    
+
+    
+
+    
+
+                        sender_id = std::stoull(row[0]);
+
+    
+
+    
+
+    
+
+                        is_group = true;
+
+    
+
+    
+
+    
+
+                        group_id = std::stoull(row[1]);
+
+    
+
+    
+
+    
+
+                        mysql_free_result(result);
+
+    
+
+    
+
+    
+
+                        return true;
+
+    
+
+    
+
+    
+
+                    }
+
+    
+
+    
+
+    
+
+                    mysql_free_result(result);
+
+    
+
+    
+
+    
+
+                }
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            return false;
+
+    
+
+    
+
+    
+
+        }
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+        bool Database::recall_private_message(uint64_t message_id, uint64_t user_id) {
+
+    
+
+    
+
+    
+
+            std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 检查时间限制（2分钟内）
+
+    
+
+    
+
+    
+
+            std::ostringstream sql;
+
+    
+
+    
+
+    
+
+            sql << "SELECT sender_id, created_at FROM private_messages WHERE message_id = " << message_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            MYSQL_RES* result = mysql_store_result(connection_);
+
+    
+
+    
+
+    
+
+            if (!result) return false;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            MYSQL_ROW row = mysql_fetch_row(result);
+
+    
+
+    
+
+    
+
+            if (!row) {
+
+    
+
+    
+
+    
+
+                mysql_free_result(result);
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            uint64_t sender_id = std::stoull(row[0]);
+
+    
+
+    
+
+    
+
+            int64_t created_at = std::stoll(row[1]);
+
+    
+
+    
+
+    
+
+            mysql_free_result(result);
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 验证发送者
+
+    
+
+    
+
+    
+
+            if (sender_id != user_id) {
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 检查时间限制（2分钟 = 120秒）
+
+    
+
+    
+
+    
+
+            int64_t now = get_current_timestamp();
+
+    
+
+    
+
+    
+
+            if (now - created_at > 120) {
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 标记消息为已撤回（更新内容）
+
+    
+
+    
+
+    
+
+            sql.str("");
+
+    
+
+    
+
+    
+
+            sql << "UPDATE private_messages SET content = '[消息已撤回]', media_type = 0, media_url = '' "
+
+    
+
+    
+
+    
+
+                << "WHERE message_id = " << message_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            return mysql_query(connection_, sql.str().c_str()) == 0;
+
+    
+
+    
+
+    
+
+        }
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+        bool Database::recall_group_message(uint64_t message_id, uint64_t user_id) {
+
+    
+
+    
+
+    
+
+            std::lock_guard<std::mutex> lock(mutex_);
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 获取消息信息和群组信息
+
+    
+
+    
+
+    
+
+            std::ostringstream sql;
+
+    
+
+    
+
+    
+
+            sql << "SELECT sender_id, group_id, created_at FROM group_messages WHERE message_id = " << message_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            if (mysql_query(connection_, sql.str().c_str()) != 0) {
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            MYSQL_RES* result = mysql_store_result(connection_);
+
+    
+
+    
+
+    
+
+            if (!result) return false;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            MYSQL_ROW row = mysql_fetch_row(result);
+
+    
+
+    
+
+    
+
+            if (!row) {
+
+    
+
+    
+
+    
+
+                mysql_free_result(result);
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            uint64_t sender_id = std::stoull(row[0]);
+
+    
+
+    
+
+    
+
+            uint64_t group_id = std::stoull(row[1]);
+
+    
+
+    
+
+    
+
+            int64_t created_at = std::stoll(row[2]);
+
+    
+
+    
+
+    
+
+            mysql_free_result(result);
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 检查权限：发送者或群管理员可以撤回
+
+    
+
+    
+
+    
+
+            bool is_sender = (sender_id == user_id);
+
+    
+
+    
+
+    
+
+            bool is_admin = is_group_admin(group_id, user_id);
+
+    
+
+    
+
+    
+
+            bool is_owner = is_group_owner(group_id, user_id);
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            if (!is_sender && !is_admin && !is_owner) {
+
+    
+
+    
+
+    
+
+                return false;
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 检查时间限制（群管理员撤回无时间限制，发送者撤回2分钟内）
+
+    
+
+    
+
+    
+
+            int64_t now = get_current_timestamp();
+
+    
+
+    
+
+    
+
+            if (is_sender && !is_admin && !is_owner) {
+
+    
+
+    
+
+    
+
+                if (now - created_at > 120) {
+
+    
+
+    
+
+    
+
+                    return false;
+
+    
+
+    
+
+    
+
+                }
+
+    
+
+    
+
+    
+
+            }
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            // 标记消息为已撤回
+
+    
+
+    
+
+    
+
+            sql.str("");
+
+    
+
+    
+
+    
+
+            sql << "UPDATE group_messages SET content = '[消息已撤回]', media_type = 0, media_url = '' "
+
+    
+
+    
+
+    
+
+                << "WHERE message_id = " << message_id;
+
+    
+
+    
+
+    
+
+            
+
+    
+
+    
+
+    
+
+            return mysql_query(connection_, sql.str().c_str()) == 0;
+
+    
+
+    
+
+    
+
+        }
+
+    
+
+    
+
+    
+
+    
 
     
 

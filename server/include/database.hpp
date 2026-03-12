@@ -99,6 +99,11 @@ public:
     bool get_user_public_key(uint64_t user_id, std::string& public_key);
     bool delete_user_key(uint64_t user_id);
     
+    // 消息撤回相关
+    bool recall_private_message(uint64_t message_id, uint64_t user_id);
+    bool recall_group_message(uint64_t message_id, uint64_t user_id);
+    bool get_message_sender(uint64_t message_id, uint64_t& sender_id, bool& is_group, uint64_t& group_id);
+    
 private:
     MYSQL* connection_;
     std::mutex mutex_;

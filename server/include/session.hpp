@@ -98,6 +98,9 @@ private:
     void handle_key_request(uint32_t sequence, const json& body);
     void handle_encrypted_message(uint32_t sequence, const json& body);
     
+    // 消息撤回
+    void handle_message_recall(uint32_t sequence, const json& body);
+    
 private:
     asio::io_context& io_context_;
     Socket socket_;

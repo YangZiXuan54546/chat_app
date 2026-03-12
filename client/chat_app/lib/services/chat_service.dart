@@ -276,6 +276,12 @@ class ChatService extends ChangeNotifier {
       case MessageType.encryptedMessageResponse:
         _handleEncryptedMessage(body);
         break;
+      case MessageType.messageRecall:
+        _handleMessageRecall(body);
+        break;
+      case MessageType.messageRecallResponse:
+        _handleMessageRecallResponse(body);
+        break;
       default:
         break;
     }
@@ -1431,4 +1437,100 @@ class ChatService extends ChangeNotifier {
   
   /// 端到端加密是否启用
   bool get e2eeEnabled => _e2eeEnabled;
+  
+  /// 撤回消息
+  Future<bool> recallMessage(int messageId, {bool isGroup = false, int? groupId}) async {
+    if (!_isAuthenticated || _currentUser == null) {
+      return false;
+    }
+    
+    _recallSuccess = false;
+    _recallError = null;
+    
+    _network.send(MessageType.messageRecall, {
+      'message_id': messageId,
+      'is_group': isGroup,
+      'group_id': groupId ?? 0,
+    });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_recallSuccess || _recallError != null) {
+        return _recallSuccess;
+      }
+    }
+    
+    _recallError = 'Recall timeout';
+    return false;
+  }
+  
+  bool _recallSuccess = false;
+  String? _recallError;
+  
+  /// 获取撤回错误
+  String? get recallError => _recallError;
+  
+  /// 处理消息撤回通知
+  void _handleMessageRecall(Map<String, dynamic> body) {
+    final messageId = body['message_id'] as int?;
+    final isGroup = body['is_group'] as bool? ?? false;
+    
+    if (messageId == null) return;
+    
+    // 更新本地消息
+    _updateRecalledMessage(messageId, isGroup);
+  }
+  
+  /// 处理撤回响应
+  void _handleMessageRecallResponse(Map<String, dynamic> body) {
+    final data = body['data'] as Map<String, dynamic>?;
+    if (data == null) return;
+    
+    final success = data['success'] as bool? ?? false;
+    if (success) {
+      _recallSuccess = true;
+      final messageId = data['message_id'] as int?;
+      if (messageId != null) {
+        // 更新本地消息
+        _updateRecalledMessage(messageId, false);
+      }
+    } else {
+      _recallError = data['error'] as String? ?? 'Failed to recall message';
+    }
+    notifyListeners();
+  }
+  
+  /// 更新被撤回的消息
+  void _updateRecalledMessage(int messageId, bool isGroup) {
+    // 遍历所有会话找到该消息
+    for (var entry in _messages.entries) {
+      final messages = entry.value;
+      for (var i = 0; i < messages.length; i++) {
+        if (messages[i].messageId == messageId) {
+          // 创建新的已撤回消息
+          final recalledMessage = Message(
+            messageId: messages[i].messageId,
+            senderId: messages[i].senderId,
+            receiverId: messages[i].receiverId,
+            groupId: messages[i].groupId,
+            mediaType: messages[i].mediaType,
+            content: '[消息已撤回]',
+            mediaUrl: messages[i].mediaUrl,
+            extra: messages[i].extra,
+            status: messages[i].status,
+            createdAt: messages[i].createdAt,
+          );
+          
+          messages[i] = recalledMessage;
+          
+          // 更新本地数据库
+          _messageDb.saveMessage(recalledMessage);
+          
+          notifyListeners();
+          return;
+        }
+      }
+    }
+  }
 }

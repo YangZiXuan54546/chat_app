@@ -95,6 +95,10 @@ enum MessageType {
   encryptedMessage(114),
   encryptedMessageResponse(115),
 
+  // 消息撤回
+  messageRecall(120),
+  messageRecallResponse(121),
+
   // 错误
   error(255);
 

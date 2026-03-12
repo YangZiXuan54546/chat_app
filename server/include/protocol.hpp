@@ -105,6 +105,10 @@ enum class MessageType : uint8_t {
     ENCRYPTED_MESSAGE = 114,
     ENCRYPTED_MESSAGE_RESPONSE = 115,
     
+    // 消息撤回
+    MESSAGE_RECALL = 120,
+    MESSAGE_RECALL_RESPONSE = 121,
+    
     // 错误
     ERROR = 255
 };
