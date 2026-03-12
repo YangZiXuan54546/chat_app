@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通知颜色 -->
+    <color name="notification_color">#6200EE</color>
+    
+    <!-- 主题颜色 -->
+    <color name="primary_color">#6200EE</color>
+    <color name="secondary_color">#03DAC6</color>
+</resources>
