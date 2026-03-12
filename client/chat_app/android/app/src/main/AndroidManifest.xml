@@ -27,9 +27,6 @@
     <!-- 开机启动权限 (用于启动通知服务) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     
-    <!-- Firebase Cloud Messaging 权限 -->
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    
     <application
         android:label="Chat App"
         android:name="${applicationName}"
@@ -59,26 +56,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
-        
-        <!-- Firebase Cloud Messaging -->
-        <service
-            android:name="com.google.firebase.messaging.FirebaseMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-        
-        <!-- 默认通知图标和颜色 -->
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher"/>
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_color"
-            android:resource="@color/notification_color"/>
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="messages"/>
             
         <!-- 文件提供者 -->
         <provider

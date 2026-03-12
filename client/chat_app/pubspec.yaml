@@ -51,10 +51,6 @@ dependencies:
   # 多媒体
   video_player: ^2.8.1
   audioplayers: ^5.2.1
-  
-  # Firebase 推送通知
-  firebase_core: ^2.24.2
-  firebase_messaging: ^14.7.10
 
 dev_dependencies:
   flutter_test:
