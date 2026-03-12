@@ -45,16 +45,22 @@ class MessageDatabase {
       isGroup: message.groupId > 0,
     );
     
-    // 检查消息是否已存在
-    if (!messages.any((m) => m.messageId == message.messageId)) {
+    // 检查消息是否已存在，如果存在则更新
+    final existingIndex = messages.indexWhere((m) => m.messageId == message.messageId && message.messageId > 0);
+    if (existingIndex >= 0) {
+      // 更新已存在的消息
+      messages[existingIndex] = message;
+    } else {
+      // 添加新消息
       messages.add(message);
-      // 按时间排序
-      messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
-      // 保存到 Hive
-      final jsonList = messages.map((m) => jsonEncode(m.toJson())).toList();
-      await _messagesBox?.put(key, jsonEncode(jsonList));
     }
+    
+    // 按时间排序
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    
+    // 保存到 Hive
+    final jsonList = messages.map((m) => jsonEncode(m.toJson())).toList();
+    await _messagesBox?.put(key, jsonEncode(jsonList));
   }
 
   /// 批量保存消息

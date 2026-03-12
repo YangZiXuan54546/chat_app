@@ -1484,8 +1484,23 @@ class ChatService extends ChangeNotifier {
   
   /// 处理撤回响应
   void _handleMessageRecallResponse(Map<String, dynamic> body) {
+    debugPrint('Received recall response: $body');
+    
+    // 检查响应格式
+    final code = body['code'] as int?;
+    if (code != null && code != 0) {
+      _recallError = body['message'] as String? ?? 'Failed to recall message';
+      notifyListeners();
+      return;
+    }
+    
     final data = body['data'] as Map<String, dynamic>?;
-    if (data == null) return;
+    if (data == null) {
+      debugPrint('Recall response missing data field');
+      _recallError = 'Invalid response format';
+      notifyListeners();
+      return;
+    }
     
     final success = data['success'] as bool? ?? false;
     if (success) {
@@ -1503,34 +1518,49 @@ class ChatService extends ChangeNotifier {
   
   /// 更新被撤回的消息
   void _updateRecalledMessage(int messageId, bool isGroup) {
+    debugPrint('Updating recalled message: messageId=$messageId, isGroup=$isGroup');
+    
     // 遍历所有会话找到该消息
+    bool found = false;
     for (var entry in _messages.entries) {
       final messages = entry.value;
       for (var i = 0; i < messages.length; i++) {
         if (messages[i].messageId == messageId) {
+          found = true;
+          debugPrint('Found message at key=${entry.key}, index=$i');
+          
           // 创建新的已撤回消息
           final recalledMessage = Message(
             messageId: messages[i].messageId,
             senderId: messages[i].senderId,
             receiverId: messages[i].receiverId,
             groupId: messages[i].groupId,
-            mediaType: messages[i].mediaType,
+            mediaType: 0, // 文本类型
             content: '[消息已撤回]',
-            mediaUrl: messages[i].mediaUrl,
-            extra: messages[i].extra,
+            mediaUrl: '',
+            extra: '',
             status: messages[i].status,
             createdAt: messages[i].createdAt,
           );
           
           messages[i] = recalledMessage;
           
+          debugPrint('Message updated in memory: ${recalledMessage.content}');
+          
           // 更新本地数据库
-          _messageDb.saveMessage(recalledMessage);
+          _messageDb.saveMessage(recalledMessage).then((_) {
+            debugPrint('Message saved to local database');
+          });
           
           notifyListeners();
           return;
         }
       }
+    }
+    
+    if (!found) {
+      debugPrint('Message not found in memory: messageId=$messageId');
+      debugPrint('Available conversation keys: ${_messages.keys.toList()}');
     }
   }
 }
