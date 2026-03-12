@@ -5,9 +5,9 @@
 功能包括：私聊、群聊、好友系统、多媒体消息、MySQL数据存储
 
 ## 当前状态
-- 阶段: 功能开发完成
-- 最后更新: 2026-03-11
-- 完成功能: 14 / 14
+- 阶段: 稳定性和性能优化
+- 最后更新: 2026-03-12
+- 完成功能: 18 / 18
 
 ## 已完成工作
 - 2026-03-08 项目初始化完成
@@ -446,3 +446,47 @@
   - `client/chat_app/lib/main.dart` - 初始化通知服务
   - `client/chat_app/pubspec.yaml` - 添加依赖
   - `client/chat_app/android/app/src/main/AndroidManifest.xml` - 添加权限
+
+## [2026-03-12] Bug 修复 - 服务器假死问题 (线程泄漏和内存增长)
+- 问题描述:
+  - 服务器运行时间一长会假死
+  - 通常发生在有5个线程运行时
+  - 可能存在内存泄漏情况
+
+- 根因分析:
+  - **线程泄漏 (严重)**: `DeepSeekClient::chat` 使用 `std::thread().detach()` 创建线程但不管理，每次 AI 回复都会创建新线程且永不释放
+  - **内存无限增长**: `conversations_` map 会无限增长，没有清理机制
+  - **资源管理问题**: `processing_messages_` set 在异常情况下可能不会清理
+
+- 修复内容:
+  1. **添加线程池** (`ThreadPool` 类)
+     - 使用固定数量工作线程 (4个)
+     - 任务队列管理 HTTP 请求
+     - 避免无限创建线程
+  
+  2. **限制会话数量**
+     - 添加 `max_conversations_` 限制 (默认100)
+     - 超过限制时清理最旧会话
+     - 添加 `cleanup_expired_conversations()` 定期清理过期会话
+  
+  3. **RAII 资源管理**
+     - 使用 `CleanupGuard` 确保 `processing_messages_` 正确清理
+     - 所有退出路径都能释放资源
+  
+  4. **服务器健康监控**
+     - 添加统计信息 (连接数、消息数、运行时间)
+     - 定期输出健康状态
+     - 添加定期清理定时器
+
+- 测试结果:
+  - 线程数稳定在 9 个 (4 io_context + 4 线程池 + 1 主线程)
+  - 内存使用稳定 (~15MB RSS)
+  - 无线程泄漏
+  - 服务器长时间运行正常
+
+- 相关文件:
+  - `server/include/deepseek_client.hpp` - 添加 ThreadPool 和 ConversationEntry
+  - `server/src/deepseek_client.cpp` - 实现线程池和会话管理
+  - `server/include/server.hpp` - 添加统计信息和清理定时器
+  - `server/src/server.cpp` - 实现健康监控和清理
+  - `server/src/bot_manager.cpp` - RAII 风格资源管理
