@@ -11,17 +11,26 @@ import 'providers/app_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 初始化存储服务
-  await StorageService().init();
+  try {
+    // 初始化存储服务
+    await StorageService().init();
+    
+    // 初始化本地消息数据库
+    await MessageDatabase().init();
+    
+    // 初始化本地通知服务
+    await NotificationService().init();
+  } catch (e) {
+    debugPrint('初始化基础服务错误: $e');
+  }
   
-  // 初始化本地消息数据库
-  await MessageDatabase().init();
-  
-  // 初始化本地通知服务
-  await NotificationService().init();
-  
-  // 初始化 FCM 服务
-  await FcmService().init();
+  // FCM 初始化 (不阻塞主流程)
+  try {
+    await FcmService().init();
+  } catch (e) {
+    debugPrint('FCM 初始化错误: $e');
+    // FCM 初始化失败不影响应用启动
+  }
   
   runApp(const ChatApp());
 }

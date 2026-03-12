@@ -6,9 +6,13 @@ import 'notification_service.dart';
 /// 后台消息处理器 (必须是顶级函数)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // 初始化 Firebase
-  await Firebase.initializeApp();
-  debugPrint('后台消息: ${message.notification?.title} - ${message.notification?.body}');
+  try {
+    // 初始化 Firebase
+    await Firebase.initializeApp();
+    debugPrint('后台消息: ${message.notification?.title} - ${message.notification?.body}');
+  } catch (e) {
+    debugPrint('后台消息处理错误: $e');
+  }
 }
 
 class FcmService {
@@ -16,32 +20,35 @@ class FcmService {
   factory FcmService() => _instance;
   FcmService._internal();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   final NotificationService _notificationService = NotificationService();
   
   String? _fcmToken;
   bool _initialized = false;
+  bool _initFailed = false;
   
   // Token 更新回调
   Function(String token)? onTokenRefresh;
 
   String? get fcmToken => _fcmToken;
   bool get isInitialized => _initialized;
+  bool get isAvailable => _initialized && !_initFailed;
 
   /// 初始化 FCM 服务
   Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized || _initFailed) return;
 
     try {
       // 初始化 Firebase
       await Firebase.initializeApp();
+      _messaging = FirebaseMessaging.instance;
       debugPrint('Firebase 初始化成功');
 
       // 设置后台消息处理器
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
       // 请求权限 (iOS)
-      final settings = await _messaging.requestPermission(
+      final settings = await _messaging!.requestPermission(
         alert: true,
         badge: true,
         sound: true,
@@ -50,11 +57,11 @@ class FcmService {
       debugPrint('FCM 权限状态: ${settings.authorizationStatus}');
 
       // 获取 FCM Token
-      _fcmToken = await _messaging.getToken();
+      _fcmToken = await _messaging!.getToken();
       debugPrint('FCM Token: $_fcmToken');
 
       // 监听 Token 刷新
-      _messaging.onTokenRefresh.listen((newToken) {
+      _messaging!.onTokenRefresh.listen((newToken) {
         _fcmToken = newToken;
         debugPrint('FCM Token 刷新: $newToken');
         onTokenRefresh?.call(newToken);
@@ -73,7 +80,7 @@ class FcmService {
       });
 
       // 检查 App 是否从通知打开
-      final initialMessage = await _messaging.getInitialMessage();
+      final initialMessage = await _messaging!.getInitialMessage();
       if (initialMessage != null) {
         debugPrint('从通知启动: ${initialMessage.data}');
         _handleMessageOpenedApp(initialMessage);
@@ -82,7 +89,9 @@ class FcmService {
       _initialized = true;
       debugPrint('FCM 服务初始化完成');
     } catch (e) {
-      debugPrint('FCM 初始化错误: $e');
+      _initFailed = true;
+      debugPrint('FCM 初始化失败，推送通知将不可用: $e');
+      // 不抛出异常，允许应用继续运行
     }
   }
 
