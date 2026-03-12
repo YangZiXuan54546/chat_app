@@ -25,7 +25,14 @@ void main() async {
     debugPrint('初始化基础服务错误: $e');
   }
   
-  // 后台服务初始化 (不阻塞主流程)
+  // 后台服务初始化改为异步，不阻塞主流程
+  _initBackgroundService();
+  
+  runApp(const ChatApp());
+}
+
+/// 异步初始化后台服务
+void _initBackgroundService() async {
   try {
     final storage = StorageService();
     final useFCM = storage.useFCMPush;
@@ -38,11 +45,10 @@ void main() async {
       // 本地后台服务模式 (国内)
       await BackgroundService().init(type: BackgroundServiceType.local);
     }
+    debugPrint('后台服务初始化完成');
   } catch (e) {
     debugPrint('后台服务初始化错误: $e');
   }
-  
-  runApp(const ChatApp());
 }
 
 class ChatApp extends StatelessWidget {
