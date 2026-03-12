@@ -32,6 +32,7 @@ public:
         uint16_t port = 8888;
         int thread_count = 4;
         int heartbeat_timeout = 60; // seconds
+        int cleanup_interval = 300;  // seconds - 清理过期会话的间隔
     };
     
     Server(const Config& config);
@@ -70,10 +71,20 @@ public:
     // 获取 io_context（用于异步操作）
     IOContext& get_io_context() { return io_context_; }
     
+    // 获取服务器统计信息
+    struct Stats {
+        size_t total_connections = 0;
+        size_t current_connections = 0;
+        size_t messages_processed = 0;
+        std::chrono::steady_clock::time_point start_time;
+    };
+    Stats get_stats();
+    
 private:
     void do_accept();
     void handle_accept(Session::ptr session, const asio::error_code& ec);
     void check_heartbeats();
+    void cleanup_expired_resources();  // 定期清理过期资源
     
 private:
     Config config_;
@@ -88,6 +99,7 @@ private:
     std::vector<std::thread> threads_;
     
     asio::steady_timer heartbeat_timer_;
+    asio::steady_timer cleanup_timer_;  // 清理定时器
     
     // 管理器
     std::shared_ptr<UserManager> user_manager_;
@@ -96,6 +108,11 @@ private:
     std::shared_ptr<FriendManager> friend_manager_;
     std::shared_ptr<Database> database_;
     std::shared_ptr<BotManager> bot_manager_;
+    
+    // 统计信息
+    std::atomic<size_t> total_connections_{0};
+    std::atomic<size_t> messages_processed_{0};
+    std::chrono::steady_clock::time_point start_time_;
 };
 
 } // namespace chat

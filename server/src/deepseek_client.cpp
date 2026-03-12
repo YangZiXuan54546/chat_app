@@ -1,6 +1,5 @@
 #include "deepseek_client.hpp"
 #include <iostream>
-#include <thread>
 #include <future>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
@@ -9,7 +8,61 @@ using json = nlohmann::json;
 
 namespace chat {
 
-// CURL 回调函数 - 接收响应数据
+// ==================== ThreadPool 实现 ====================
+
+ThreadPool::ThreadPool(size_t num_threads) {
+    for (size_t i = 0; i < num_threads; ++i) {
+        threads_.emplace_back(&ThreadPool::worker_thread, this);
+    }
+}
+
+ThreadPool::~ThreadPool() {
+    stop();
+}
+
+void ThreadPool::stop() {
+    stop_ = true;
+    condition_.notify_all();
+    for (auto& thread : threads_) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+    threads_.clear();
+}
+
+void ThreadPool::worker_thread() {
+    while (true) {
+        std::function<void()> task;
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            condition_.wait(lock, [this] {
+                return stop_ || !tasks_.empty();
+            });
+            
+            if (stop_ && tasks_.empty()) {
+                return;
+            }
+            
+            task = std::move(tasks_.front());
+            tasks_.pop_front();
+        }
+        
+        task();
+    }
+}
+
+template<typename F>
+void ThreadPool::enqueue(F&& task) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        tasks_.emplace_back(std::forward<F>(task));
+    }
+    condition_.notify_one();
+}
+
+// ==================== CURL 回调函数 ====================
+
 static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t total_size = size * nmemb;
     std::string* response = static_cast<std::string*>(userp);
@@ -17,8 +70,11 @@ static size_t write_callback(void* contents, size_t size, size_t nmemb, void* us
     return total_size;
 }
 
+// ==================== DeepSeekClient 实现 ====================
+
 DeepSeekClient::DeepSeekClient(asio::io_context& io_context)
-    : io_context_(io_context) {
+    : io_context_(io_context)
+    , thread_pool_(std::make_unique<ThreadPool>(4)) {  // 使用4个工作线程
     // 初始化 libcurl (全局初始化，只需调用一次)
     static bool curl_initialized = false;
     if (!curl_initialized) {
@@ -28,6 +84,10 @@ DeepSeekClient::DeepSeekClient(asio::io_context& io_context)
 }
 
 DeepSeekClient::~DeepSeekClient() {
+    // 停止线程池
+    if (thread_pool_) {
+        thread_pool_->stop();
+    }
 }
 
 void DeepSeekClient::set_api_key(const std::string& api_key) {
@@ -46,18 +106,34 @@ void DeepSeekClient::set_system_prompt(const std::string& prompt) {
     system_prompt_ = prompt;
 }
 
-std::vector<DeepSeekMessage>& DeepSeekClient::get_conversation(const std::string& conversation_id) {
+ConversationEntry& DeepSeekClient::get_conversation(const std::string& conversation_id) {
     std::lock_guard<std::mutex> lock(conversations_mutex_);
     
     auto it = conversations_.find(conversation_id);
     if (it == conversations_.end()) {
-        // 创建新对话，添加系统提示
-        auto& conv = conversations_[conversation_id];
-        if (!system_prompt_.empty()) {
-            conv.emplace_back("system", system_prompt_);
+        // 检查是否超过最大会话数，如果是则清理最旧的
+        if (conversations_.size() >= max_conversations_) {
+            // 找到最旧的会话并删除
+            auto oldest = conversations_.begin();
+            for (auto iter = conversations_.begin(); iter != conversations_.end(); ++iter) {
+                if (iter->second.last_access < oldest->second.last_access) {
+                    oldest = iter;
+                }
+            }
+            conversations_.erase(oldest);
+            std::cout << "Cleaned up oldest conversation to make room" << std::endl;
         }
-        return conv;
+        
+        // 创建新对话，添加系统提示
+        auto& entry = conversations_[conversation_id];
+        if (!system_prompt_.empty()) {
+            entry.messages.emplace_back("system", system_prompt_);
+        }
+        entry.last_access = std::chrono::steady_clock::now();
+        return entry;
     }
+    
+    it->second.last_access = std::chrono::steady_clock::now();
     return it->second;
 }
 
@@ -69,6 +145,23 @@ void DeepSeekClient::clear_conversation(const std::string& conversation_id) {
 void DeepSeekClient::clear_all_conversations() {
     std::lock_guard<std::mutex> lock(conversations_mutex_);
     conversations_.clear();
+}
+
+void DeepSeekClient::cleanup_expired_conversations(int max_age_seconds) {
+    std::lock_guard<std::mutex> lock(conversations_mutex_);
+    
+    auto now = std::chrono::steady_clock::now();
+    auto expire_time = std::chrono::seconds(max_age_seconds);
+    
+    for (auto it = conversations_.begin(); it != conversations_.end(); ) {
+        auto age = std::chrono::duration_cast<std::chrono::seconds>(
+            now - it->second.last_access);
+        if (age > expire_time) {
+            it = conversations_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 std::string DeepSeekClient::build_request(const std::vector<DeepSeekMessage>& messages) {
@@ -194,7 +287,8 @@ DeepSeekResponse DeepSeekClient::chat_sync(const std::string& user_message,
     }
     
     // 获取对话上下文
-    auto& conversation = get_conversation(conversation_id);
+    auto& entry = get_conversation(conversation_id);
+    auto& conversation = entry.messages;
     
     // 添加用户消息
     conversation.emplace_back("user", user_message);
@@ -236,8 +330,8 @@ DeepSeekResponse DeepSeekClient::chat_sync(const std::string& user_message,
 void DeepSeekClient::chat(const std::string& user_message,
                           const std::string& conversation_id,
                           ResponseCallback callback) {
-    // 使用独立线程执行 HTTP 请求，避免阻塞 io_context 工作线程
-    std::thread([this, user_message, conversation_id, callback]() {
+    // 使用线程池执行 HTTP 请求，避免无限创建线程
+    thread_pool_->enqueue([this, user_message, conversation_id, callback]() {
         auto response = chat_sync(user_message, conversation_id);
         // 回调需要在 io_context 线程中执行
         asio::post(io_context_, [callback, response]() {
@@ -245,7 +339,7 @@ void DeepSeekClient::chat(const std::string& user_message,
                 callback(response);
             }
         });
-    }).detach();
+    });
 }
 
 } // namespace chat

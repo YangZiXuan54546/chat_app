@@ -8,6 +8,10 @@
 #include <mutex>
 #include <chrono>
 #include <unordered_map>
+#include <deque>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
 #include <asio.hpp>
 
 namespace chat {
@@ -31,6 +35,39 @@ struct DeepSeekResponse {
     std::string content;
     std::string error;
     int tokens_used = 0;
+};
+
+/**
+ * 简单线程池 - 用于管理 HTTP 请求线程
+ */
+class ThreadPool {
+public:
+    explicit ThreadPool(size_t num_threads);
+    ~ThreadPool();
+    
+    template<typename F>
+    void enqueue(F&& task);
+    
+    void stop();
+    
+private:
+    void worker_thread();
+    
+    std::vector<std::thread> threads_;
+    std::deque<std::function<void()>> tasks_;
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    std::atomic<bool> stop_{false};
+};
+
+/**
+ * 带时间戳的对话上下文
+ */
+struct ConversationEntry {
+    std::vector<DeepSeekMessage> messages;
+    std::chrono::steady_clock::time_point last_access;
+    
+    ConversationEntry() : last_access(std::chrono::steady_clock::now()) {}
 };
 
 /**
@@ -91,6 +128,11 @@ public:
     void clear_all_conversations();
     
     /**
+     * 清理过期会话 (由外部定时调用)
+     */
+    void cleanup_expired_conversations(int max_age_seconds = 3600);
+    
+    /**
      * 检查是否已配置 API Key
      */
     bool is_configured() const { return !api_key_.empty(); }
@@ -99,6 +141,11 @@ public:
      * 设置最大上下文消息数
      */
     void set_max_context_messages(int max) { max_context_messages_ = max; }
+    
+    /**
+     * 设置最大会话数
+     */
+    void set_max_conversations(size_t max) { max_conversations_ = max; }
 
 private:
     /**
@@ -120,7 +167,7 @@ private:
     /**
      * 获取或创建对话上下文
      */
-    std::vector<DeepSeekMessage>& get_conversation(const std::string& conversation_id);
+    ConversationEntry& get_conversation(const std::string& conversation_id);
     
 private:
     asio::io_context& io_context_;
@@ -133,9 +180,13 @@ private:
     int max_context_messages_ = 10;  // 最大上下文消息数
     int max_tokens_ = 1000;          // 最大生成 token 数
     float temperature_ = 0.7f;       // 温度参数
+    size_t max_conversations_ = 100; // 最大会话数
     
     std::mutex conversations_mutex_;
-    std::unordered_map<std::string, std::vector<DeepSeekMessage>> conversations_;
+    std::unordered_map<std::string, ConversationEntry> conversations_;
+    
+    // 线程池用于 HTTP 请求
+    std::unique_ptr<ThreadPool> thread_pool_;
 };
 
 } // namespace chat

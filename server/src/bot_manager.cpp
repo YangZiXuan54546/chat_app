@@ -113,6 +113,24 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
         processing_messages_.insert(message_id);
     }
     
+    // RAII 风格的清理 guard，确保在任何退出路径都清理
+    struct CleanupGuard {
+        BotManager* mgr;
+        uint64_t msg_id;
+        bool should_cleanup;
+        
+        CleanupGuard(BotManager* m, uint64_t id) : mgr(m), msg_id(id), should_cleanup(true) {}
+        ~CleanupGuard() {
+            if (should_cleanup) {
+                std::lock_guard<std::mutex> lock(mgr->mutex_);
+                mgr->processing_messages_.erase(msg_id);
+            }
+        }
+        void release() { should_cleanup = false; }
+    };
+    
+    CleanupGuard guard(this, message_id);
+    
     std::cout << "Bot handling message from user " << sender_id << ": " << content << std::endl;
     
     // 获取或创建用户当前会话
@@ -136,12 +154,7 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
             server_->send_to_user(sender_id,
                 Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, limit_message.to_json()));
         }
-        
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            processing_messages_.erase(message_id);
-        }
-        return;
+        return;  // guard 会自动清理
     }
     
     // 检查是否是命令
@@ -163,12 +176,7 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
             server_->send_to_user(sender_id,
                 Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, reply.to_json()));
         }
-        
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            processing_messages_.erase(message_id);
-        }
-        return;
+        return;  // guard 会自动清理
     }
     
     if (content == "/sessions") {
@@ -199,12 +207,7 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
             server_->send_to_user(sender_id,
                 Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, reply.to_json()));
         }
-        
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            processing_messages_.erase(message_id);
-        }
-        return;
+        return;  // guard 会自动清理
     }
     
     // 保存用户消息到数据库
@@ -220,14 +223,22 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
         // 这里我们不手动添加历史，让 DeepSeekClient 内部管理
     }
     
-    // 调用 DeepSeek API
+    // 异步调用 DeepSeek API，回调中需要手动清理
+    // 释放 guard，让回调负责清理
+    guard.release();
+    
     deepseek_client_->chat(content, conversation_id, 
         [this, sender_id, message_id, conversation_id](const DeepSeekResponse& response) {
-            // 处理完成后移除标记
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                processing_messages_.erase(message_id);
-            }
+            // RAII guard 确保清理
+            struct CallbackGuard {
+                BotManager* mgr;
+                uint64_t msg_id;
+                ~CallbackGuard() {
+                    std::lock_guard<std::mutex> lock(mgr->mutex_);
+                    mgr->processing_messages_.erase(msg_id);
+                }
+            };
+            CallbackGuard cb_guard{this, message_id};
             
             if (!response.success) {
                 std::cerr << "DeepSeek API error: " << response.error << std::endl;
@@ -247,7 +258,7 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
                     server_->send_to_user(sender_id,
                         Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, error_msg.to_json()));
                 }
-                return;
+                return;  // cb_guard 会自动清理
             }
             
             std::cout << "Bot response: " << response.content << std::endl;
@@ -296,6 +307,7 @@ void BotManager::handle_bot_message(uint64_t sender_id, const std::string& conte
                         Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, warning.to_json()));
                 }
             }
+            // cb_guard 会自动清理
         });
 }
 
