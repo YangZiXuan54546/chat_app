@@ -18,7 +18,78 @@ class ChatService extends ChangeNotifier {
   User? _currentUser;
   bool _isConnected = false;
   bool _isAuthenticated = false;
+  
+  // 端到端加密状态
+  bool _e2eeEnabled = false;
+  
+  // 注册状态
+  bool _registerSuccess = false;
+  String? _registerError;
+  int? _registeredUserId;
+  
+  // 登录状态
+  bool _loginSuccess = false;
+  String? _loginError;
+  
+  final Map<int, User> _users = {};
+  final Map<int, Group> _groups = {};
+  final Map<int, List<Message>> _messages = {}; // key: peerId or -groupId
+  final Map<int, List<int>> _groupMembers = {}; // 群成员ID列表
+  final List<Friend> _friends = [];
+  final List<Friend> _friendRequests = [];
+  final List<Conversation> _conversations = [];
+  List<User> _searchResults = [];
+  
+  // 好友请求相关状态
+  bool _friendAddSuccess = false;
+  String? _friendAddError;
+  
+  // 群组创建相关状态
+  bool _groupCreateSuccess = false;
+  String? _groupCreateError;
+  int? _createdGroupId;
+  
+  // 媒体上传相关状态
+  bool _mediaUploading = false;
+  double _uploadProgress = 0.0;
+  String? _uploadedMediaUrl;
+  int? _uploadedFileId;
+  String? _uploadError;
+
+  User? get currentUser => _currentUser;
+  bool get isConnected => _isConnected;
+  bool get isAuthenticated => _isAuthenticated;
+  bool get registerSuccess => _registerSuccess;
+  String? get registerError => _registerError;
+  int? get registeredUserId => _registeredUserId;
+  bool get loginSuccess => _loginSuccess;
+  String? get loginError => _loginError;
+  List<Friend> get friends => _friends;
+  List<Friend> get friendRequests => _friendRequests;
+  List<Conversation> get conversations => _conversations;
+  List<Group> get groups => _groups.values.toList();
+  List<User> get searchResults => _searchResults;
+  bool get friendAddSuccess => _friendAddSuccess;
+  String? get friendAddError => _friendAddError;
+  bool get groupCreateSuccess => _groupCreateSuccess;
+  String? get groupCreateError => _groupCreateError;
+  int? get createdGroupId => _createdGroupId;
+  
+  // 媒体上传相关 getter
+  bool get mediaUploading => _mediaUploading;
+  double get uploadProgress => _uploadProgress;
+  String? get uploadedMediaUrl => _uploadedMediaUrl;
+  int? get uploadedFileId => _uploadedFileId;
+  String? get uploadError => _uploadError;
+  
+  int get currentUserId => _currentUser?.userId ?? 0;
+
+  // 媒体服务器地址（用于替换服务器返回的localhost URL）
   String _mediaServerHost = "10.0.2.2:8889"; // Android模拟器访问宿主机
+  
+  void setMediaServerHost(String host) {
+    _mediaServerHost = host;
+  }
   
   // 替换URL中的localhost为实际的媒体服务器地址
   String _fixMediaUrl(String url) {
@@ -26,10 +97,6 @@ class ChatService extends ChangeNotifier {
       return url.replaceFirst(RegExp(r"http://localhost:\d+"), "http://$_mediaServerHost");
     }
     return url;
-  }
-
-  void setMediaServerHost(String host) {
-    _mediaServerHost = host;
   }
 
   // 重连状态
@@ -57,10 +124,8 @@ class ChatService extends ChangeNotifier {
   }
 
   void _init() {
-    // 初始化通知服务（非阻塞）
-    _notificationService.init().catchError((e) {
-      debugPrint('NotificationService init error: $e');
-    });
+    // 初始化通知服务
+    _notificationService.init();
     
     _network.addConnectionCallback((connected) {
       final wasConnected = _isConnected;
@@ -108,196 +173,59 @@ class ChatService extends ChangeNotifier {
       }
     }
     
-    _reconnectLoginSuccess = _loginSuccess;
     if (_loginSuccess) {
-      debugPrint('Reconnect login successful');
+      debugPrint('Auto-login after reconnect successful');
+      _reconnectLoginSuccess = true;
+      _isReconnecting = false;
     } else {
-      debugPrint('Reconnect login failed: $_loginError');
+      debugPrint('Auto-login after reconnect failed: $_loginError');
+      _reconnectLoginSuccess = false;
     }
-  }
-
-  // 用户数据
-  final Map<int, User> _users = {};
-  final Map<int, Group> _groups = {};
-  final Map<int, List<Message>> _messages = {};
-  final List<Conversation> _conversations = [];
-  final Map<int, int> _unreadCounts = {};
-  List<User> _searchResults = [];
-
-  User? get currentUser => _currentUser;
-  bool get isConnected => _isConnected;
-  bool get isAuthenticated => _isAuthenticated;
-  int get currentUserId => _currentUser?.userId ?? 0;
-  List<User> get searchResults => _searchResults;
-  List<Conversation> get conversations => _conversations;
-
-  // 登录状态
-  bool _loginSuccess = false;
-  String? _loginError;
-  bool get loginSuccess => _loginSuccess;
-  String? get loginError => _loginError;
-
-  // 注册状态
-  bool _registerSuccess = false;
-  String? _registerError;
-  int? _registeredUserId;
-  bool get registerSuccess => _registerSuccess;
-  String? get registerError => _registerError;
-  int? get registeredUserId => _registeredUserId;
-
-  // 上传状态
-  bool _mediaUploading = false;
-  double _uploadProgress = 0.0;
-  String? _uploadedMediaUrl;
-  int? _uploadedFileId;
-  String? _uploadError;
-  bool get mediaUploading => _mediaUploading;
-  double get uploadProgress => _uploadProgress;
-  String? get uploadedMediaUrl => _uploadedMediaUrl;
-  int? get uploadedFileId => _uploadedFileId;
-  String? get uploadError => _uploadError;
-
-  // 用户相关
-  User? getUser(int userId) => _users[userId];
-  Group? getGroup(int groupId) => _groups[groupId];
-
-  /// 连接服务器
-  Future<bool> connect(String host, int port) async {
-    return await _network.connect(host, port);
-  }
-
-  /// 断开连接
-  void disconnect() {
-    _network.disconnect();
-    _isAuthenticated = false;
-    _currentUser = null;
+    
     notifyListeners();
   }
 
-  /// 注册
-  Future<bool> register(String username, String password, String nickname) async {
-    // 重置状态
-    _registerSuccess = false;
-    _registerError = null;
-    _registeredUserId = null;
-    
-    // 检查网络连接
-    if (!_isConnected) {
-      _registerError = '未连接到服务器';
-      notifyListeners();
-      return false;
-    }
-    
-    _network.send(MessageType.register, {
-      'username': username,
-      'password': password,
-      'nickname': nickname,
-    });
-    
-    // 等待响应（最多5秒）
-    for (int i = 0; i < 50; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (_registerSuccess || _registerError != null) {
-        return _registerSuccess;
-      }
-    }
-    
-    _registerError = '注册超时';
-    return false;
-  }
-
-  /// 登录
-  Future<bool> login(String username, String password) async {
-    // 重置状态
-    _loginSuccess = false;
-    _loginError = null;
-    
-    // 检查网络连接
-    if (!_isConnected) {
-      _loginError = '未连接到服务器';
-      notifyListeners();
-      return false;
-    }
-    
-    // 保存凭据用于重连
-    _network.saveCredentials(username, password);
-    
-    _network.send(MessageType.login, {
-      'username': username,
-      'password': password,
-    });
-    
-    // 等待响应（最多5秒）
-    for (int i = 0; i < 50; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (_loginSuccess || _loginError != null) {
-        return _loginSuccess;
-      }
-    }
-    
-    _loginError = '登录超时';
-    return false;
-  }
-
-  /// 登出
-  void logout() {
-    _network.send(MessageType.logout, {});
-    _network.clearCredentials();
-    _isAuthenticated = false;
-    _currentUser = null;
-    _messages.clear();
-    _conversations.clear();
-    _users.clear();
-    _groups.clear();
-    notifyListeners();
-  }
-
-  /// 搜索用户
-  void searchUsers(String keyword) {
-    _network.send(MessageType.userSearch, {
-      'keyword': keyword,
-      'limit': 20,
-    });
-  }
-
-  /// 处理用户搜索响应
-  void _handleUserSearchResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final usersJson = data['users'] as List<dynamic>? ?? [];
-        _searchResults = usersJson
-            .map((json) => User.fromJson(json as Map<String, dynamic>))
-            .toList();
-        notifyListeners();
-      }
-    }
-  }
-
-  // ==================== 消息处理 ====================
-
+  /// 处理收到的消息
   void _handleMessage(MessageType type, int sequence, Map<String, dynamic> body) {
     switch (type) {
-      case MessageType.registerResponse:
-        _handleRegisterResponse(body);
-        break;
       case MessageType.loginResponse:
         _handleLoginResponse(body);
         break;
-      case MessageType.logoutResponse:
-        _isAuthenticated = false;
-        notifyListeners();
+      case MessageType.registerResponse:
+        _handleRegisterResponse(body);
         break;
-      case MessageType.userInfoResponse:
-        _handleUserInfoResponse(body);
+      case MessageType.privateMessage:
+        _handlePrivateMessage(body);
+        break;
+      case MessageType.privateMessageResponse:
+        _handlePrivateMessageResponse(body);
+        break;
+      case MessageType.privateHistoryResponse:
+        _handlePrivateHistoryResponse(body);
+        break;
+      case MessageType.groupMessage:
+        _handleGroupMessage(body);
+        break;
+      case MessageType.friendListResponse:
+        _handleFriendListResponse(body);
+        break;
+      case MessageType.friendRequestsResponse:
+        _handleFriendRequestsResponse(body);
+        break;
+      case MessageType.groupListResponse:
+        _handleGroupListResponse(body);
         break;
       case MessageType.userSearchResponse:
         _handleUserSearchResponse(body);
         break;
       case MessageType.friendAddResponse:
-      case MessageType.friendAdd:
         _handleFriendAddResponse(body);
+        break;
+      case MessageType.friendAdd:
+        _handleFriendRequestNotification(body);
+        break;
+      case MessageType.friendAccept:
+        _handleFriendAcceptNotification(body);
         break;
       case MessageType.friendAcceptResponse:
         _handleFriendAcceptResponse(body);
@@ -308,41 +236,32 @@ class ChatService extends ChangeNotifier {
       case MessageType.friendRemoveResponse:
         _handleFriendRemoveResponse(body);
         break;
-      case MessageType.friendListResponse:
-        _handleFriendListResponse(body);
-        break;
-      case MessageType.friendRequestsResponse:
-        _handleFriendRequestsResponse(body);
-        break;
       case MessageType.friendRemarkResponse:
         _handleFriendRemarkResponse(body);
-        break;
-      case MessageType.privateMessage:
-        _handleIncomingPrivateMessage(body);
-        break;
-      case MessageType.privateMessageResponse:
-        _handlePrivateMessageResponse(body);
-        break;
-      case MessageType.privateHistoryResponse:
-        _handlePrivateHistoryResponse(body);
         break;
       case MessageType.groupCreateResponse:
         _handleGroupCreateResponse(body);
         break;
-      case MessageType.groupListResponse:
-        _handleGroupListResponse(body);
+      case MessageType.groupAddMemberResponse:
+        _handleGroupAddMemberResponse(body);
+        break;
+      case MessageType.groupSetAdminResponse:
+        _handleGroupSetAdminResponse(body);
+        break;
+      case MessageType.groupTransferOwnerResponse:
+        _handleGroupTransferOwnerResponse(body);
+        break;
+      case MessageType.groupRemoveMemberResponse:
+        _handleGroupRemoveMemberResponse(body);
+        break;
+      case MessageType.groupLeaveResponse:
+        _handleGroupLeaveResponse(body);
+        break;
+      case MessageType.groupDismissResponse:
+        _handleGroupDismissResponse(body);
         break;
       case MessageType.groupMembersResponse:
         _handleGroupMembersResponse(body);
-        break;
-      case MessageType.groupMessage:
-        _handleIncomingGroupMessage(body);
-        break;
-      case MessageType.groupMessageResponse:
-        _handleGroupMessageResponse(body);
-        break;
-      case MessageType.groupHistoryResponse:
-        _handleGroupHistoryResponse(body);
         break;
       case MessageType.mediaUploadResponse:
         _handleMediaUploadResponse(body);
@@ -368,6 +287,82 @@ class ChatService extends ChangeNotifier {
     }
   }
 
+  /// 连接服务器
+  Future<bool> connect(String host, int port) async {
+    return await _network.connect(host, port);
+  }
+
+  /// 断开连接
+  void disconnect() {
+    _network.disconnect();
+    _isAuthenticated = false;
+    _currentUser = null;
+    notifyListeners();
+  }
+
+  /// 注册
+  Future<bool> register(String username, String password, String nickname) async {
+    // 重置状态
+    _registerSuccess = false;
+    _registerError = null;
+    _registeredUserId = null;
+    
+    _network.send(MessageType.register, {
+      'username': username,
+      'password': password,
+      'nickname': nickname,
+    });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_registerSuccess || _registerError != null) {
+        return _registerSuccess;
+      }
+    }
+    
+    _registerError = 'Registration timeout';
+    return false;
+  }
+
+  /// 登录
+  Future<bool> login(String username, String password) async {
+    // 重置状态
+    _loginSuccess = false;
+    _loginError = null;
+    
+    _network.send(MessageType.login, {
+      'username': username,
+      'password': password,
+    });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_loginSuccess || _loginError != null) {
+        // 登录成功后保存凭据用于重连
+        if (_loginSuccess) {
+          _network.saveCredentials(username, password);
+        }
+        return _loginSuccess;
+      }
+    }
+    
+    _loginError = 'Login timeout';
+    return false;
+  }
+
+  /// 登出
+  void logout() {
+    _network.send(MessageType.logout, {});
+    _network.clearCredentials();
+    _isAuthenticated = false;
+    _isReconnecting = false;
+    _reconnectLoginSuccess = false;
+    _currentUser = null;
+    notifyListeners();
+  }
+
   /// 处理登录响应
   void _handleLoginResponse(Map<String, dynamic> body) {
     final code = body['code'] ?? -1;
@@ -379,11 +374,10 @@ class ChatService extends ChangeNotifier {
         _loginSuccess = true;
         _loginError = null;
         
-        // 保存用户信息
-        _users[_currentUser!.userId] = _currentUser!;
-        
+        // 如果是重连登录成功
         if (_isReconnecting) {
           _reconnectLoginSuccess = true;
+          _isReconnecting = false;
           debugPrint('Reconnect login successful');
         }
         
@@ -437,33 +431,12 @@ class ChatService extends ChangeNotifier {
     });
   }
 
-  /// 发送群聊消息
-  void sendGroupMessage(int groupId, String content, {int mediaType = 0, String mediaUrl = '', List<int>? mentionedUsers}) {
-    final body = <String, dynamic>{
-      'group_id': groupId,
-      'content': content,
-      'media_type': mediaType,
-      'media_url': mediaUrl,
-    };
-    if (mentionedUsers != null && mentionedUsers.isNotEmpty) {
-      body['mentioned_users'] = mentionedUsers;
-    }
-    _network.send(MessageType.groupMessage, body);
-  }
-
-  /// 处理接收到的私聊消息
-  void _handleIncomingPrivateMessage(Map<String, dynamic> body) {
+  /// 处理私聊消息
+  void _handlePrivateMessage(Map<String, dynamic> body) {
     final message = Message.fromJson(body);
-    final peerId = message.senderId;
+    final key = message.groupId > 0 ? -message.groupId : 
+                 (message.senderId == currentUserId ? message.receiverId : message.senderId);
     
-    // 缓存发送者信息
-    if (body['sender'] != null) {
-      final sender = User.fromJson(body['sender'] as Map<String, dynamic>);
-      _users[sender.userId] = sender;
-    }
-    
-    // 添加到消息列表
-    final key = peerId;
     if (!_messages.containsKey(key)) {
       _messages[key] = [];
     }
@@ -472,11 +445,11 @@ class ChatService extends ChangeNotifier {
     // 保存到本地数据库
     _messageDb.saveMessage(message);
     
-    // 更新会话列表
     _updateConversation(message);
     
-    // 发送通知（如果不在当前聊天界面）
+    // 发送通知（如果不在当前聊天界面且不是自己发的消息）
     if (message.senderId != currentUserId) {
+      final peerId = message.senderId;
       if (!_isInChatScreen || _currentChatPeerId != peerId) {
         // 获取发送者名称
         String senderName = '用户';
@@ -549,70 +522,57 @@ class ChatService extends ChangeNotifier {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
         final messagesJson = data['messages'] as List<dynamic>? ?? [];
-        final peerId = data['peer_id'] as int? ?? 0;
+        final serverMessages = <Message>[];
+        int peerId = 0;
         
-        final messages = messagesJson
-            .map((json) => Message.fromJson(json as Map<String, dynamic>))
-            .toList();
-        
-        final key = peerId;
-        if (!_messages.containsKey(key)) {
-          _messages[key] = [];
-        }
-        
-        // 合并消息（去重）
-        final existingIds = _messages[key]!.map((m) => m.messageId).toSet();
-        for (final message in messages.reversed) {
-          if (!existingIds.contains(message.messageId)) {
+        for (final item in messagesJson) {
+          final message = Message.fromJson(item as Map<String, dynamic>);
+          serverMessages.add(message);
+          peerId = message.senderId == currentUserId ? message.receiverId : message.senderId;
+          
+          final key = message.senderId == currentUserId ? message.receiverId : message.senderId;
+          
+          if (!_messages.containsKey(key)) {
+            _messages[key] = [];
+          }
+          // 避免重复添加
+          if (!_messages[key]!.any((m) => m.messageId == message.messageId)) {
             _messages[key]!.insert(0, message);
-            existingIds.add(message.messageId);
           }
         }
         
-        // 保存到本地数据库
-        _messageDb.saveMessages(peerId, messages, isGroup: false);
-        
-        notifyListeners();
-      }
-    }
-  }
-
-  /// 处理群聊消息响应
-  void _handleGroupMessageResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final message = Message.fromJson(data);
-        final key = -message.groupId; // 使用负数作为群聊的key
-        
-        if (!_messages.containsKey(key)) {
-          _messages[key] = [];
+        // 批量保存到本地数据库
+        if (peerId > 0 && serverMessages.isNotEmpty) {
+          _messageDb.saveMessages(peerId, serverMessages, isGroup: false);
         }
-        _messages[key]!.add(message);
         
-        // 保存到本地数据库
-        _messageDb.saveMessage(message);
-        
-        _updateConversation(message);
         notifyListeners();
       }
     }
   }
 
-  /// 处理接收到的群聊消息
-  void _handleIncomingGroupMessage(Map<String, dynamic> body) {
-    final message = Message.fromJson(body);
-    final groupId = message.groupId;
+  /// 发送群聊消息
+  void sendGroupMessage(int groupId, String content, {int mediaType = 0, String mediaUrl = '', List<int>? mentionedUsers}) {
+    final body = {
+      'group_id': groupId,
+      'content': content,
+      'media_type': mediaType,
+      'media_url': mediaUrl,
+    };
     
-    // 缓存发送者信息
-    if (body['sender'] != null) {
-      final sender = User.fromJson(body['sender'] as Map<String, dynamic>);
-      _users[sender.userId] = sender;
+    // 添加 @成员 信息
+    if (mentionedUsers != null && mentionedUsers.isNotEmpty) {
+      body['mentioned_users'] = mentionedUsers;
     }
     
-    // 添加到消息列表
-    final key = -groupId;
+    _network.send(MessageType.groupMessage, body);
+  }
+
+  /// 处理群聊消息
+  void _handleGroupMessage(Map<String, dynamic> body) {
+    final message = Message.fromJson(body);
+    final key = -message.groupId;
+    
     if (!_messages.containsKey(key)) {
       _messages[key] = [];
     }
@@ -621,12 +581,18 @@ class ChatService extends ChangeNotifier {
     // 保存到本地数据库
     _messageDb.saveMessage(message);
     
-    // 更新会话列表
     _updateConversation(message);
     
-    // 发送通知
+    // 发送通知（如果不在当前群聊界面且不是自己发的消息）
     if (message.senderId != currentUserId) {
+      final groupId = message.groupId;
       if (!_isInChatScreen || _currentChatPeerId != groupId) {
+        // 获取群组名称
+        String groupName = _groups.containsKey(groupId) 
+            ? _groups[groupId]!.groupName 
+            : '群聊';
+        
+        // 获取发送者名称
         String senderName = '用户';
         if (_users.containsKey(message.senderId)) {
           senderName = _users[message.senderId]!.nickname.isNotEmpty 
@@ -634,11 +600,7 @@ class ChatService extends ChangeNotifier {
               : _users[message.senderId]!.username;
         }
         
-        String groupName = '群组';
-        if (_groups.containsKey(groupId)) {
-          groupName = _groups[groupId]!.groupName;
-        }
-        
+        // 根据消息类型显示不同的通知内容
         String notificationBody;
         if (message.isImage) {
           notificationBody = '$senderName: [图片]';
@@ -649,7 +611,7 @@ class ChatService extends ChangeNotifier {
         }
         
         _notificationService.showMessageNotification(
-          id: groupId + 10000,
+          id: groupId + 10000, // 群组ID加偏移避免与私聊冲突
           title: groupName,
           body: notificationBody,
           payload: 'group_$groupId',
@@ -658,41 +620,6 @@ class ChatService extends ChangeNotifier {
     }
     
     notifyListeners();
-  }
-
-  /// 处理群聊历史响应
-  void _handleGroupHistoryResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final messagesJson = data['messages'] as List<dynamic>? ?? [];
-        final groupId = data['group_id'] as int? ?? 0;
-        
-        final messages = messagesJson
-            .map((json) => Message.fromJson(json as Map<String, dynamic>))
-            .toList();
-        
-        final key = -groupId;
-        if (!_messages.containsKey(key)) {
-          _messages[key] = [];
-        }
-        
-        // 合并消息（去重）
-        final existingIds = _messages[key]!.map((m) => m.messageId).toSet();
-        for (final message in messages.reversed) {
-          if (!existingIds.contains(message.messageId)) {
-            _messages[key]!.insert(0, message);
-            existingIds.add(message.messageId);
-          }
-        }
-        
-        // 保存到本地数据库
-        _messageDb.saveMessages(groupId, messages, isGroup: true);
-        
-        notifyListeners();
-      }
-    }
   }
 
   /// 获取消息列表
@@ -729,13 +656,26 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-  // ==================== 好友相关 ====================
-
   /// 添加好友
-  void addFriend(int friendId) {
+  Future<bool> addFriend(int friendId) async {
+    // 重置状态
+    _friendAddSuccess = false;
+    _friendAddError = null;
+    
     _network.send(MessageType.friendAdd, {
       'friend_id': friendId,
     });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_friendAddSuccess || _friendAddError != null) {
+        return _friendAddSuccess;
+      }
+    }
+    
+    _friendAddError = 'Request timeout';
+    return false;
   }
 
   /// 接受好友请求
@@ -743,6 +683,7 @@ class ChatService extends ChangeNotifier {
     _network.send(MessageType.friendAccept, {
       'friend_id': friendId,
     });
+    _loadFriendRequests();
   }
 
   /// 拒绝好友请求
@@ -750,6 +691,7 @@ class ChatService extends ChangeNotifier {
     _network.send(MessageType.friendReject, {
       'friend_id': friendId,
     });
+    _loadFriendRequests();
   }
 
   /// 删除好友
@@ -757,141 +699,185 @@ class ChatService extends ChangeNotifier {
     _network.send(MessageType.friendRemove, {
       'friend_id': friendId,
     });
+    _loadFriendList();
   }
 
-  /// 设置好友备注
-  void setFriendRemark(int friendId, String remark) {
-    _network.send(MessageType.friendRemark, {
-      'friend_id': friendId,
-      'remark': remark,
-    });
+  /// 加载好友列表
+  void _loadFriendList() {
+    _network.send(MessageType.friendList, {});
   }
 
-  void _handleFriendAddResponse(Map<String, dynamic> body) {
-    // 处理好友添加响应
-    notifyListeners();
+  /// 加载好友请求
+  void _loadFriendRequests() {
+    _network.send(MessageType.friendRequests, {});
   }
 
-  void _handleFriendAcceptResponse(Map<String, dynamic> body) {
-    // 处理好友接受响应
-    notifyListeners();
-  }
-
-  void _handleFriendRejectResponse(Map<String, dynamic> body) {
-    notifyListeners();
-  }
-
-  void _handleFriendRemoveResponse(Map<String, dynamic> body) {
-    notifyListeners();
-  }
-
+  /// 处理好友列表响应
   void _handleFriendListResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final friendsJson = data['friends'] as List<dynamic>? ?? [];
-        for (final json in friendsJson) {
-          final friendData = json as Map<String, dynamic>;
-          if (friendData['user'] != null) {
-            final user = User.fromJson(friendData['user'] as Map<String, dynamic>);
-            _users[user.userId] = user;
-          }
-        }
-        notifyListeners();
-      }
+    final data = body['data'] as Map<String, dynamic>?;
+    if (data == null) return;
+    
+    final friendsJson = data['friends'] as List<dynamic>? ?? [];
+    _friends.clear();
+    
+    for (final item in friendsJson) {
+      final friendData = item as Map<String, dynamic>;
+      final friend = Friend.fromJson(friendData);
+      _friends.add(friend);
+      _users[friend.user.userId] = friend.user;
     }
-  }
-
-  void _handleFriendRequestsResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final requestsJson = data['requests'] as List<dynamic>? ?? [];
-        for (final json in requestsJson) {
-          final requestData = json as Map<String, dynamic>;
-          if (requestData['user'] != null) {
-            final user = User.fromJson(requestData['user'] as Map<String, dynamic>);
-            _users[user.userId] = user;
-          }
-        }
-        notifyListeners();
-      }
-    }
-  }
-
-  void _handleFriendRemarkResponse(Map<String, dynamic> body) {
+    
     notifyListeners();
   }
 
-  // ==================== 群组相关 ====================
+  /// 处理好友请求响应
+  void _handleFriendRequestsResponse(Map<String, dynamic> body) {
+    final data = body['data'] as Map<String, dynamic>?;
+    if (data == null) return;
+    
+    final requestsJson = data['requests'] as List<dynamic>? ?? [];
+    _friendRequests.clear();
+    
+    for (final item in requestsJson) {
+      final friendData = item as Map<String, dynamic>;
+      final friend = Friend.fromJson(friendData);
+      _friendRequests.add(friend);
+    }
+    
+    notifyListeners();
+  }
 
   /// 创建群组
-  void createGroup(String groupName, List<int> memberIds) {
+  Future<bool> createGroup(String groupName, String description) async {
+    // 重置状态
+    _groupCreateSuccess = false;
+    _groupCreateError = null;
+    _createdGroupId = null;
+    
     _network.send(MessageType.groupCreate, {
       'group_name': groupName,
-      'member_ids': memberIds,
+      'description': description,
+    });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_groupCreateSuccess || _groupCreateError != null) {
+        return _groupCreateSuccess;
+      }
+    }
+    
+    _groupCreateError = 'Create group timeout';
+    return false;
+  }
+  
+  /// 邀请成员加入群组
+  void inviteGroupMembers(int groupId, List<int> memberIds) {
+    for (final memberId in memberIds) {
+      _network.send(MessageType.groupAddMember, {
+        'group_id': groupId,
+        'user_id': memberId,
+      });
+    }
+    // 刷新群组列表
+    _network.send(MessageType.groupList, {});
+  }
+  
+  /// 设置/取消管理员
+  void setGroupAdmin(int groupId, int userId, bool isAdmin) {
+    _network.send(MessageType.groupSetAdmin, {
+      'group_id': groupId,
+      'user_id': userId,
+      'is_admin': isAdmin,
     });
   }
-
-  void _handleGroupCreateResponse(Map<String, dynamic> body) {
-    notifyListeners();
+  
+  /// 转让群主
+  void transferGroupOwner(int groupId, int newOwnerId) {
+    _network.send(MessageType.groupTransferOwner, {
+      'group_id': groupId,
+      'new_owner_id': newOwnerId,
+    });
   }
-
-  void _handleGroupListResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final groupsJson = data['groups'] as List<dynamic>? ?? [];
-        for (final json in groupsJson) {
-          final group = Group.fromJson(json as Map<String, dynamic>);
-          _groups[group.groupId] = group;
-        }
-        notifyListeners();
-      }
-    }
+  
+  /// 踢出群成员
+  void removeGroupMember(int groupId, int userId) {
+    _network.send(MessageType.groupRemoveMember, {
+      'group_id': groupId,
+      'user_id': userId,
+    });
   }
-
-  void _handleGroupMembersResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final membersJson = data['members'] as List<dynamic>? ?? [];
-        for (final json in membersJson) {
-          final user = User.fromJson(json as Map<String, dynamic>);
-          _users[user.userId] = user;
-        }
-        notifyListeners();
-      }
-    }
+  
+  /// 退出群组
+  void leaveGroup(int groupId) {
+    _network.send(MessageType.groupLeave, {
+      'group_id': groupId,
+    });
   }
-
-  /// 获取群组成员
-  Future<List<User>> fetchGroupMembers(int groupId) async {
+  
+  /// 解散群组
+  void dismissGroup(int groupId) {
+    _network.send(MessageType.groupDismiss, {
+      'group_id': groupId,
+    });
+  }
+  
+  /// 获取群成员列表
+  void getGroupMembers(int groupId) {
     _network.send(MessageType.groupMembers, {
       'group_id': groupId,
     });
-    // 等待响应
-    await Future.delayed(const Duration(milliseconds: 500));
-    // 返回缓存的用户
-    // 这里需要更复杂的逻辑，暂时简化
-    return _users.values.toList();
   }
-
-  /// 处理用户信息响应
-  void _handleUserInfoResponse(Map<String, dynamic> body) {
+  
+  /// 处理群组创建响应
+  void _handleGroupCreateResponse(Map<String, dynamic> body) {
     final code = body['code'] ?? -1;
     if (code == 0) {
+      _groupCreateSuccess = true;
+      _groupCreateError = null;
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
-        final user = User.fromJson(data['user'] as Map<String, dynamic>? ?? data);
-        _users[user.userId] = user;
-        notifyListeners();
+        _createdGroupId = data['group_id'] as int?;
       }
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    } else {
+      _groupCreateSuccess = false;
+      _groupCreateError = body['message'] as String? ?? 'Failed to create group';
     }
+    notifyListeners();
+  }
+  
+  /// 处理添加群成员响应
+  void _handleGroupAddMemberResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    }
+    notifyListeners();
+  }
+
+  /// 加入群组
+  void joinGroup(int groupId) {
+    _network.send(MessageType.groupJoin, {
+      'group_id': groupId,
+    });
+  }
+
+  /// 处理群组列表响应
+  void _handleGroupListResponse(Map<String, dynamic> body) {
+    final data = body['data'] as Map<String, dynamic>?;
+    if (data == null) return;
+    
+    final groupsJson = data['groups'] as List<dynamic>? ?? [];
+    
+    for (final item in groupsJson) {
+      final group = Group.fromJson(item as Map<String, dynamic>);
+      _groups[group.groupId] = group;
+    }
+    
+    notifyListeners();
   }
 
   /// 更新会话列表
@@ -905,24 +891,384 @@ class ChatService extends ChangeNotifier {
       c.groupId > 0 ? c.groupId == groupId : c.peerId == peerId
     );
     
+    Conversation? existingConv;
+    int unreadCount = 0;
+    bool isPinned = false;
+    bool isMuted = false;
+    
     if (index >= 0) {
-      // 更新现有会话
+      // 更新现有会话，保留原有属性
+      existingConv = _conversations[index];
+      unreadCount = existingConv.unreadCount;
+      isPinned = existingConv.isPinned;
+      isMuted = existingConv.isMuted;
       _conversations.removeAt(index);
     }
     
-    // 创建新会话并插入到开头
-    _conversations.insert(0, Conversation(
+    // 如果是收到的消息，增加未读数（不在当前聊天界面时）
+    if (message.senderId != currentUserId) {
+      final currentChatPeerId = _currentChatPeerId;
+      final isCurrentChat = groupId > 0 
+          ? currentChatPeerId == groupId 
+          : currentChatPeerId == peerId;
+      
+      if (!isCurrentChat) {
+        unreadCount++;
+      }
+    }
+    
+    // 创建新会话并插入到合适位置（置顶的在前面）
+    final newConv = Conversation(
       peerId: peerId,
       groupId: groupId,
       peer: _users[peerId],
       group: groupId > 0 ? _groups[groupId] : null,
       lastMessage: message,
-      unreadCount: message.senderId != currentUserId ? 1 : 0,
-    ));
+      unreadCount: unreadCount,
+      isPinned: isPinned,
+      isMuted: isMuted,
+    );
+    
+    // 置顶的会话放在前面
+    if (isPinned) {
+      final pinnedCount = _conversations.where((c) => c.isPinned).length;
+      _conversations.insert(pinnedCount, newConv);
+    } else {
+      _conversations.insert(0, newConv);
+    }
+    
+    // 如果原来是置顶的，重新排序
+    if (isPinned) {
+      _sortConversations();
+    }
+  }
+  
+  /// 排序会话列表（置顶在前，其他按时间排序）
+  void _sortConversations() {
+    _conversations.sort((a, b) {
+      // 置顶的在前
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      
+      // 按最后消息时间排序
+      final aTime = a.lastMessage?.createdAt ?? 0;
+      final bTime = b.lastMessage?.createdAt ?? 0;
+      return bTime.compareTo(aTime);
+    });
+  }
+  
+  /// 切换会话置顶状态
+  void toggleConversationPin(int peerId, {bool isGroup = false}) {
+    final index = _conversations.indexWhere((c) => 
+      isGroup ? c.groupId == peerId : c.peerId == peerId
+    );
+    
+    if (index >= 0) {
+      final conv = _conversations[index];
+      _conversations[index] = Conversation(
+        peerId: conv.peerId,
+        groupId: conv.groupId,
+        peer: conv.peer,
+        group: conv.group,
+        lastMessage: conv.lastMessage,
+        unreadCount: conv.unreadCount,
+        isPinned: !conv.isPinned,
+        isMuted: conv.isMuted,
+      );
+      _sortConversations();
+      notifyListeners();
+    }
+  }
+  
+  /// 切换会话免打扰状态
+  void toggleConversationMute(int peerId, {bool isGroup = false}) {
+    final index = _conversations.indexWhere((c) => 
+      isGroup ? c.groupId == peerId : c.peerId == peerId
+    );
+    
+    if (index >= 0) {
+      final conv = _conversations[index];
+      _conversations[index] = Conversation(
+        peerId: conv.peerId,
+        groupId: conv.groupId,
+        peer: conv.peer,
+        group: conv.group,
+        lastMessage: conv.lastMessage,
+        unreadCount: conv.unreadCount,
+        isPinned: conv.isPinned,
+        isMuted: !conv.isMuted,
+      );
+      notifyListeners();
+    }
+  }
+  
+  /// 标记会话为已读
+  void markConversationRead(int peerId, {bool isGroup = false}) {
+    final index = _conversations.indexWhere((c) => 
+      isGroup ? c.groupId == peerId : c.peerId == peerId
+    );
+    
+    if (index >= 0) {
+      final conv = _conversations[index];
+      _conversations[index] = Conversation(
+        peerId: conv.peerId,
+        groupId: conv.groupId,
+        peer: conv.peer,
+        group: conv.group,
+        lastMessage: conv.lastMessage,
+        unreadCount: 0,
+        isPinned: conv.isPinned,
+        isMuted: conv.isMuted,
+      );
+      notifyListeners();
+    }
+  }
+  
+  /// 删除会话
+  void deleteConversation(int peerId, {bool isGroup = false}) {
+    _conversations.removeWhere((c) => 
+      isGroup ? c.groupId == peerId : c.peerId == peerId
+    );
+    notifyListeners();
   }
 
-  // ==================== 媒体上传 ====================
+  /// 搜索用户
+  void searchUsers(String keyword) {
+    _network.send(MessageType.userSearch, {
+      'keyword': keyword,
+      'limit': 20,
+    });
+  }
 
+  /// 处理用户搜索响应
+  void _handleUserSearchResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final usersJson = data['users'] as List<dynamic>? ?? [];
+        _searchResults = usersJson
+            .map((json) => User.fromJson(json as Map<String, dynamic>))
+            .toList();
+        notifyListeners();
+      }
+    }
+  }
+
+  /// 处理添加好友响应
+  void _handleFriendAddResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      _friendAddSuccess = true;
+      _friendAddError = null;
+    } else {
+      _friendAddSuccess = false;
+      _friendAddError = body['message'] as String? ?? 'Failed to add friend';
+    }
+    notifyListeners();
+  }
+
+  /// 处理好友请求通知（被他人添加为好友）
+  void _handleFriendRequestNotification(Map<String, dynamic> body) {
+    // 刷新好友请求列表
+    _loadFriendRequests();
+    
+    // 发送好友请求通知
+    final fromUserId = body['from_user_id'] as int?;
+    final fromUsername = body['from_username'] as String? ?? '';
+    final fromNickname = body['from_nickname'] as String?;
+    
+    if (fromUserId != null) {
+      _notificationService.showFriendRequestNotification(
+        id: fromUserId + 20000, // 加偏移避免与其他通知冲突
+        username: fromUsername,
+        nickname: fromNickname,
+      );
+    }
+    
+    notifyListeners();
+  }
+
+  /// 处理好友请求被接受的通知（对方接受了你的好友请求）
+  void _handleFriendAcceptNotification(Map<String, dynamic> body) {
+    // 刷新好友列表和好友请求列表
+    _loadFriendList();
+    _loadFriendRequests();
+    debugPrint('Friend request accepted: $body');
+    notifyListeners();
+  }
+
+  /// 处理接受好友请求响应
+  void _handleFriendAcceptResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友列表和好友请求列表
+      _loadFriendList();
+      _loadFriendRequests();
+    }
+    notifyListeners();
+  }
+
+  /// 处理拒绝好友请求响应
+  void _handleFriendRejectResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友请求列表
+      _loadFriendRequests();
+    }
+    notifyListeners();
+  }
+
+  /// 处理删除好友响应
+  void _handleFriendRemoveResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友列表
+      _loadFriendList();
+    }
+    notifyListeners();
+  }
+
+  /// 处理设置好友备注响应
+  void _handleFriendRemarkResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新好友列表
+      _loadFriendList();
+    }
+    notifyListeners();
+  }
+
+  /// 设置好友备注
+  void setFriendRemark(int friendId, String remark) {
+    _network.send(MessageType.friendRemark, {
+      'friend_id': friendId,
+      'remark': remark,
+    });
+  }
+
+  /// 加载好友请求列表
+  void getUserInfo(int userId) {
+    _network.send(MessageType.userInfo, {
+      'user_id': userId,
+    });
+  }
+
+  /// 更新用户信息
+  void updateUserInfo({String? nickname, String? signature, String? avatarUrl}) {
+    final data = <String, dynamic>{};
+    if (nickname != null) data['nickname'] = nickname;
+    if (signature != null) data['signature'] = signature;
+    if (avatarUrl != null) data['avatar_url'] = avatarUrl;
+    
+    _network.send(MessageType.userUpdate, data);
+  }
+  
+  /// 处理设置管理员响应
+  void _handleGroupSetAdminResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    }
+    notifyListeners();
+  }
+  
+  /// 处理转让群主响应
+  void _handleGroupTransferOwnerResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    }
+    notifyListeners();
+  }
+  
+  /// 处理踢出成员响应
+  void _handleGroupRemoveMemberResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    }
+    notifyListeners();
+  }
+  
+  /// 处理退出群组响应
+  void _handleGroupLeaveResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    }
+    notifyListeners();
+  }
+  
+  /// 处理解散群组响应
+  void _handleGroupDismissResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      // 刷新群组列表
+      _network.send(MessageType.groupList, {});
+    }
+    notifyListeners();
+  }
+  
+  /// 处理群成员列表响应
+  void _handleGroupMembersResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final membersJson = data['members'] as List<dynamic>? ?? [];
+        final groupId = data['group_id'] as int? ?? 0;
+        
+        // 存储群成员 ID 列表
+        final memberIds = <int>[];
+        
+        // 存储群成员信息到本地
+        for (final item in membersJson) {
+          final memberData = item as Map<String, dynamic>;
+          final user = User.fromJson(memberData);
+          _users[user.userId] = user;
+          memberIds.add(user.userId);
+        }
+        
+        _groupMembers[groupId] = memberIds;
+      }
+    }
+    notifyListeners();
+  }
+  
+  /// 获取群成员列表
+  List<User> getGroupMembersList(int groupId) {
+    final memberIds = _groupMembers[groupId] ?? [];
+    return memberIds.map((id) => _users[id]).whereType<User>().toList();
+  }
+  
+  /// 请求群成员列表并等待响应
+  Future<List<User>> fetchGroupMembers(int groupId) async {
+    // 先检查是否已有缓存
+    if (_groupMembers.containsKey(groupId)) {
+      return getGroupMembersList(groupId);
+    }
+    
+    // 发送请求
+    getGroupMembers(groupId);
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_groupMembers.containsKey(groupId)) {
+        return getGroupMembersList(groupId);
+      }
+    }
+    
+    return [];
+  }
+  
+  // ==================== 媒体上传相关 ====================
+  
   /// 上传媒体文件
   /// 返回上传成功后的文件 URL
   Future<String?> uploadMedia(File file, {int mediaType = 1}) async {
@@ -975,7 +1321,7 @@ class ChatService extends ChangeNotifier {
           _mediaUploading = false;
           _uploadProgress = 1.0;
           notifyListeners();
-          debugPrint('Upload complete: $_uploadedMediaUrl, error: $_uploadError');
+          debugPrint('Upload complete: url=$_uploadedMediaUrl, error=$_uploadError');
           return _uploadedMediaUrl;
         }
       }
@@ -1037,6 +1383,10 @@ class ChatService extends ChangeNotifier {
   }
   
   /// 发送文件消息
+  /// [peerId] 接收者ID或群组ID
+  /// [file] 文件对象
+  /// [fileName] 文件名
+  /// [isGroup] 是否群聊
   Future<bool> sendFileMessage(int peerId, File file, String fileName, {bool isGroup = false}) async {
     // 上传文件
     final mediaUrl = await uploadMedia(file, mediaType: MediaType.file.value);
@@ -1067,14 +1417,15 @@ class ChatService extends ChangeNotifier {
       return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
     }
   }
-
-  // ==================== 端到端加密 ====================
-
+  
+  // ==================== 端到端加密相关 ====================
+  
   /// 初始化端到端加密
   Future<void> _initE2EE() async {
     try {
       await _e2ee.init();
       
+      // 如果没有密钥对，生成新的
       if (!_e2ee.isInitialized) {
         await _e2ee.generateKeyPair();
         debugPrint('Generated new E2EE key pair');
@@ -1096,6 +1447,103 @@ class ChatService extends ChangeNotifier {
     }
   }
   
+  /// 获取用户的公钥
+  Future<String?> getUserPublicKey(int userId) async {
+    // 先检查缓存
+    final cached = _e2ee.getCachedPublicKey(userId);
+    if (cached != null) {
+      return cached;
+    }
+    
+    // 从服务器获取
+    // 发送请求
+    _network.send(MessageType.keyRequest, {
+      'user_id': userId,
+    });
+    
+    // 等待响应（通过监听器实现）
+    // 简化处理：返回 null，让调用者等待
+    return null;
+  }
+  
+  /// 发送加密私聊消息
+  Future<bool> sendEncryptedPrivateMessage(int receiverId, String content) async {
+    if (!_e2eeEnabled) {
+      debugPrint('E2EE not enabled, sending plain message');
+      sendPrivateMessage(receiverId, content);
+      return true;
+    }
+    
+    try {
+      // 获取接收者的公钥
+      String? recipientPublicKey = _e2ee.getCachedPublicKey(receiverId);
+      
+      if (recipientPublicKey == null) {
+        // 请求公钥
+        _network.send(MessageType.keyRequest, {
+          'user_id': receiverId,
+        });
+        // 简化：先发送普通消息
+        sendPrivateMessage(receiverId, content);
+        return true;
+      }
+      
+      // 加密消息
+      final encrypted = await _e2ee.encryptMessage(content, recipientPublicKey);
+      
+      // 发送加密消息
+      _network.send(MessageType.encryptedMessage, {
+        'receiver_id': receiverId,
+        'encrypted_key': encrypted['encrypted_key'],
+        'iv': encrypted['iv'],
+        'encrypted_content': encrypted['encrypted_content'],
+        'media_type': 0,
+        'media_url': '',
+      });
+      
+      return true;
+    } catch (e) {
+      debugPrint('Failed to send encrypted message: $e');
+      // 回退到普通消息
+      sendPrivateMessage(receiverId, content);
+      return false;
+    }
+  }
+  
+  /// 解密消息
+  Future<String?> decryptMessage(Message message) async {
+    if (message.extra.isEmpty) {
+      return message.content;
+    }
+    
+    try {
+      final extra = jsonDecode(message.extra) as Map<String, dynamic>;
+      final isEncrypted = extra['encrypted'] as bool? ?? false;
+      
+      if (!isEncrypted) {
+        return message.content;
+      }
+      
+      final encryptedKey = extra['encrypted_key'] as String? ?? '';
+      final iv = extra['iv'] as String? ?? '';
+      final encryptedContent = extra['encrypted_content'] as String? ?? '';
+      
+      if (encryptedKey.isEmpty || iv.isEmpty || encryptedContent.isEmpty) {
+        return message.content;
+      }
+      
+      return await _e2ee.decryptMessage(
+        encryptedKey: encryptedKey,
+        iv: iv,
+        encryptedContent: encryptedContent,
+      );
+    } catch (e) {
+      debugPrint('Failed to decrypt message: $e');
+      return message.content;
+    }
+  }
+  
+  /// 处理公钥上传响应
   void _handleKeyUploadResponse(Map<String, dynamic> body) {
     final code = body['code'] ?? -1;
     if (code == 0) {
@@ -1105,143 +1553,40 @@ class ChatService extends ChangeNotifier {
     }
   }
   
-  Future<String?> _getRecipientPublicKey(int userId) async {
-    // 先检查缓存
-    final cached = _e2ee.getCachedPublicKey(userId);
-    if (cached != null) {
-      return cached;
-    }
-    
-    // 请求公钥
-    _network.send(MessageType.keyRequest, {
-      'user_id': userId,
-    });
-    
-    // 等待响应（最多5秒）
-    for (int i = 0; i < 50; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      final key = _e2ee.getCachedPublicKey(userId);
-      if (key != null) {
-        return key;
-      }
-    }
-    
-    return null;
-  }
-  
+  /// 处理公钥请求响应
   void _handleKeyResponse(Map<String, dynamic> body) {
     final code = body['code'] ?? -1;
     if (code == 0) {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
-        final userId = data['user_id'] as int?;
-        final publicKey = data['public_key'] as String?;
-        if (userId != null && publicKey != null) {
-          _e2ee.cachePublicKey(userId, publicKey);
-        }
+        final userId = data['user_id'] as int;
+        final publicKey = data['public_key'] as String;
+        _e2ee.cachePublicKey(userId, publicKey);
+        debugPrint('Cached public key for user $userId');
       }
     }
   }
   
-  Future<bool> sendEncryptedPrivateMessage(int receiverId, String content) async {
-    if (!_e2eeEnabled) {
-      debugPrint('E2EE not enabled, sending plain message');
-      sendPrivateMessage(receiverId, content);
-      return true;
-    }
-    
-    // 获取接收者公钥
-    String? recipientPublicKey = _e2ee.getCachedPublicKey(receiverId);
-    if (recipientPublicKey == null) {
-      recipientPublicKey = await _getRecipientPublicKey(receiverId);
-    }
-    
-    if (recipientPublicKey == null) {
-      debugPrint('Failed to get recipient public key');
-      sendPrivateMessage(receiverId, content);
-      return true;
-    }
-    
-    try {
-      // 加密消息
-      final encrypted = await _e2ee.encryptMessage(content, recipientPublicKey);
-      
-      _network.send(MessageType.encryptedMessage, {
-        'receiver_id': receiverId,
-        'encrypted_key': encrypted['encrypted_key'],
-        'iv': encrypted['iv'],
-        'encrypted_content': encrypted['encrypted_content'],
-      });
-      
-      return true;
-    } catch (e) {
-      debugPrint('Failed to send encrypted message: $e');
-      sendPrivateMessage(receiverId, content);
-      return true;
-    }
-  }
-  
+  /// 处理加密消息
   void _handleEncryptedMessage(Map<String, dynamic> body) {
     final message = Message.fromJson(body);
+    final key = message.senderId;
     
-    // 尝试解密
-    try {
-      final extra = message.extra;
-      final isEncrypted = extra['encrypted'] as bool? ?? false;
-      
-      if (!isEncrypted) {
-        // 普通消息
-        _handleIncomingPrivateMessage(body);
-        return;
-      }
-      
-      final encryptedKey = extra['encrypted_key'] as String? ?? '';
-      final iv = extra['iv'] as String? ?? '';
-      final encryptedContent = extra['encrypted_content'] as String? ?? '';
-      
-      if (encryptedKey.isEmpty || iv.isEmpty || encryptedContent.isEmpty) {
-        _handleIncomingPrivateMessage(body);
-        return;
-      }
-      
-      // 解密消息
-      final decryptedContent = await _e2ee.decryptMessage(
-        encryptedKey: encryptedKey,
-        iv: iv,
-        encryptedContent: encryptedContent,
-      );
-      
-      // 更新消息内容
-      final decryptedMessage = Message(
-        messageId: message.messageId,
-        senderId: message.senderId,
-        receiverId: message.receiverId,
-        groupId: message.groupId,
-        mediaType: message.mediaType,
-        content: decryptedContent,
-        mediaUrl: message.mediaUrl,
-        extra: message.extra,
-        status: message.status,
-        createdAt: message.createdAt,
-      );
-      
-      // 处理解密后的消息
-      final bodyWithDecrypted = Map<String, dynamic>.from(body);
-      bodyWithDecrypted['content'] = decryptedContent;
-      _handleIncomingPrivateMessage(bodyWithDecrypted);
-    } catch (e) {
-      debugPrint('Failed to decrypt message: $e');
-      _handleIncomingPrivateMessage(body);
+    if (!_messages.containsKey(key)) {
+      _messages[key] = [];
     }
+    _messages[key]!.add(message);
+    
+    // 保存到本地数据库
+    _messageDb.saveMessage(message);
+    
+    _updateConversation(message);
+    notifyListeners();
   }
-  
-  bool _e2eeEnabled = false;
   
   /// 端到端加密是否启用
   bool get e2eeEnabled => _e2eeEnabled;
-
-  // ==================== 消息撤回 ====================
-
+  
   /// 撤回消息
   Future<bool> recallMessage(int messageId, {bool isGroup = false, int? groupId}) async {
     if (!_isAuthenticated || _currentUser == null) {
@@ -1265,29 +1610,46 @@ class ChatService extends ChangeNotifier {
       }
     }
     
-    _recallError = '撤回超时';
+    _recallError = 'Recall timeout';
     return false;
   }
   
   bool _recallSuccess = false;
   String? _recallError;
   
-  bool get recallSuccess => _recallSuccess;
+  /// 获取撤回错误
   String? get recallError => _recallError;
-
-  /// 处理撤回通知
+  
+  /// 处理消息撤回通知
   void _handleMessageRecall(Map<String, dynamic> body) {
     final messageId = body['message_id'] as int?;
+    final isGroup = body['is_group'] as bool? ?? false;
+    
     if (messageId == null) return;
     
     // 更新本地消息
-    _updateRecalledMessage(messageId, false);
+    _updateRecalledMessage(messageId, isGroup);
   }
   
   /// 处理撤回响应
   void _handleMessageRecallResponse(Map<String, dynamic> body) {
+    debugPrint('Received recall response: $body');
+    
+    // 检查响应格式
+    final code = body['code'] as int?;
+    if (code != null && code != 0) {
+      _recallError = body['message'] as String? ?? 'Failed to recall message';
+      notifyListeners();
+      return;
+    }
+    
     final data = body['data'] as Map<String, dynamic>?;
-    if (data == null) return;
+    if (data == null) {
+      debugPrint('Recall response missing data field');
+      _recallError = 'Invalid response format';
+      notifyListeners();
+      return;
+    }
     
     final success = data['success'] as bool? ?? false;
     if (success) {
@@ -1305,14 +1667,16 @@ class ChatService extends ChangeNotifier {
   
   /// 更新被撤回的消息
   void _updateRecalledMessage(int messageId, bool isGroup) {
-    debugPrint('Updating recalled message: $messageId');
+    debugPrint('Updating recalled message: messageId=$messageId, isGroup=$isGroup');
     
     // 遍历所有会话找到该消息
+    bool found = false;
     for (var entry in _messages.entries) {
       final messages = entry.value;
       for (var i = 0; i < messages.length; i++) {
         if (messages[i].messageId == messageId) {
-          debugPrint('Found message to recall at index $i');
+          found = true;
+          debugPrint('Found message at key=${entry.key}, index=$i');
           
           // 创建新的已撤回消息
           final recalledMessage = Message(
@@ -1323,15 +1687,19 @@ class ChatService extends ChangeNotifier {
             mediaType: 0, // 文本类型
             content: '[消息已撤回]',
             mediaUrl: '',
-            extra: messages[i].extra,
+            extra: '',
             status: messages[i].status,
             createdAt: messages[i].createdAt,
           );
           
           messages[i] = recalledMessage;
           
+          debugPrint('Message updated in memory: ${recalledMessage.content}');
+          
           // 更新本地数据库
-          _messageDb.saveMessage(recalledMessage);
+          _messageDb.saveMessage(recalledMessage).then((_) {
+            debugPrint('Message saved to local database');
+          });
           
           notifyListeners();
           return;
@@ -1339,6 +1707,9 @@ class ChatService extends ChangeNotifier {
       }
     }
     
-    debugPrint('Message not found for recall: $messageId');
+    if (!found) {
+      debugPrint('Message not found in memory: messageId=$messageId');
+      debugPrint('Available conversation keys: ${_messages.keys.toList()}');
+    }
   }
 }
