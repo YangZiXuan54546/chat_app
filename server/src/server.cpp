@@ -88,7 +88,12 @@ void Server::stop() {
 }
 
 void Server::run() {
-    io_context_.run();
+    // 等待所有工作线程完成
+    for (auto& thread : threads_) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
 }
 
 void Server::do_accept() {
