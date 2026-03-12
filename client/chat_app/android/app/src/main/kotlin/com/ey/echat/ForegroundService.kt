@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import android.graphics.BitmapFactory
 
 /**
  * 前台服务 - 保持应用在后台运行，维持 WebSocket 连接
@@ -96,8 +95,7 @@ class ForegroundService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Chat App")
             .setContentText("正在后台运行")
-            .setSmallIcon(android.R.drawable.ic_menu_chat)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, android.R.drawable.ic_menu_chat))
+            .setSmallIcon(android.R.drawable.sym_action_chat)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
