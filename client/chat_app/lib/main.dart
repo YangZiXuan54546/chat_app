@@ -5,6 +5,7 @@ import 'services/storage_service.dart';
 import 'services/message_database.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
+import 'services/background_service.dart';
 import 'screens/splash_screen.dart';
 import 'providers/app_provider.dart';
 
@@ -24,12 +25,27 @@ void main() async {
     debugPrint('初始化基础服务错误: $e');
   }
   
-  // FCM 初始化 (不阻塞主流程)
-  try {
-    await FcmService().init();
-  } catch (e) {
-    debugPrint('FCM 初始化错误: $e');
-    // FCM 初始化失败不影响应用启动
+  // 根据设置选择推送模式
+  final storage = StorageService();
+  final useFCM = storage.useFCMPush;
+  
+  if (useFCM) {
+    // FCM 模式 (国外)
+    try {
+      await FcmService().init();
+      BackgroundService().setServiceType(BackgroundServiceType.fcm);
+    } catch (e) {
+      debugPrint('FCM 初始化错误: $e');
+    }
+  } else {
+    // 本地后台服务模式 (国内)
+    try {
+      await BackgroundService().init(type: BackgroundServiceType.local);
+      // 自动启动后台服务
+      await BackgroundService().startService();
+    } catch (e) {
+      debugPrint('后台服务初始化错误: $e');
+    }
   }
   
   runApp(const ChatApp());

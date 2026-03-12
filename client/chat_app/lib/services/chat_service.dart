@@ -9,6 +9,8 @@ import 'message_database.dart';
 import 'notification_service.dart';
 import 'e2ee_service.dart';
 import 'fcm_service.dart';
+import 'background_service.dart';
+import 'storage_service.dart';
 
 class ChatService extends ChangeNotifier {
   final NetworkService _network = NetworkService();
@@ -1726,23 +1728,39 @@ class ChatService extends ChangeNotifier {
     }
   }
   
-  // ==================== FCM 推送相关 ====================
+  // ==================== 推送通知相关 ====================
   
-  /// 注册 FCM Token 到服务器
+  /// 注册推送通知 Token 到服务器
+  /// FCM 模式: 注册 FCM Token
+  /// 本地服务模式: 不需要注册
   Future<void> _registerFcmToken() async {
     try {
-      final fcmService = FcmService();
-      await fcmService.init();
+      final storage = StorageService();
       
-      final token = await fcmService.getToken();
-      if (token != null && token.isNotEmpty) {
-        debugPrint('注册 FCM Token: $token');
-        _network.send(MessageType.fcmTokenRegister, {
-          'fcm_token': token,
-        });
+      if (storage.useFCMPush) {
+        // FCM 模式 (国外)
+        final fcmService = FcmService();
+        await fcmService.init();
+        
+        final token = await fcmService.getToken();
+        if (token != null && token.isNotEmpty) {
+          debugPrint('注册 FCM Token: $token');
+          _network.send(MessageType.fcmTokenRegister, {
+            'fcm_token': token,
+          });
+        }
+      } else {
+        // 本地服务模式 (国内)
+        debugPrint('使用本地后台服务模式，不需要注册 FCM Token');
+        
+        // 确保后台服务正在运行
+        final bgService = BackgroundService();
+        if (!bgService.isRunning) {
+          await bgService.startService();
+        }
       }
     } catch (e) {
-      debugPrint('注册 FCM Token 失败: $e');
+      debugPrint('注册推送通知失败: $e');
     }
   }
 }

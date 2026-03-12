@@ -16,6 +16,8 @@ class StorageService {
   static const String _keyServerPort = 'server_port';
   static const String _keyCurrentUser = 'current_user';
   static const String _keyToken = 'auth_token';
+  static const String _keyUseFCMPush = 'use_fcm_push';
+  static const String _keyAutoStartService = 'auto_start_service';
 
   /// 初始化
   Future<void> init() async {
@@ -94,6 +96,22 @@ class StorageService {
   /// 获取主题模式
   int getThemeMode() {
     return _prefs?.getInt('theme_mode') ?? 0;
+  }
+
+  /// 是否使用 FCM 推送 (国外模式)
+  bool get useFCMPush => _prefs?.getBool(_keyUseFCMPush) ?? false;
+  
+  /// 设置是否使用 FCM 推送
+  Future<void> setUseFCMPush(bool useFCM) async {
+    await _prefs?.setBool(_keyUseFCMPush, useFCM);
+  }
+  
+  /// 是否自启动后台服务 (国内模式)
+  bool get autoStartService => _prefs?.getBool(_keyAutoStartService) ?? true;
+  
+  /// 设置是否自启动后台服务
+  Future<void> setAutoStartService(bool autoStart) async {
+    await _prefs?.setBool(_keyAutoStartService, autoStart);
   }
 
   /// 清除所有数据
