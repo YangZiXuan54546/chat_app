@@ -128,20 +128,26 @@ class FcmService {
 
   /// 删除 Token (用于登出)
   Future<void> deleteToken() async {
-    await _messaging.deleteToken();
-    _fcmToken = null;
-    debugPrint('FCM Token 已删除');
+    if (_messaging != null) {
+      await _messaging!.deleteToken();
+      _fcmToken = null;
+      debugPrint('FCM Token 已删除');
+    }
   }
 
   /// 订阅主题
   Future<void> subscribeToTopic(String topic) async {
-    await _messaging.subscribeToTopic(topic);
-    debugPrint('订阅主题: $topic');
+    if (_messaging != null) {
+      await _messaging!.subscribeToTopic(topic);
+      debugPrint('订阅主题: $topic');
+    }
   }
 
   /// 取消订阅主题
   Future<void> unsubscribeFromTopic(String topic) async {
-    await _messaging.unsubscribeFromTopic(topic);
-    debugPrint('取消订阅主题: $topic');
+    if (_messaging != null) {
+      await _messaging!.unsubscribeFromTopic(topic);
+      debugPrint('取消订阅主题: $topic');
+    }
   }
 }
