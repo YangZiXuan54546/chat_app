@@ -99,6 +99,10 @@ enum MessageType {
   messageRecall(120),
   messageRecallResponse(121),
 
+  // FCM 推送
+  fcmTokenRegister(130),
+  fcmTokenRegisterResponse(131),
+
   // 错误
   error(255);
 

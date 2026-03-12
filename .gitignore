@@ -28,3 +28,6 @@ client/chat_app/android/app/*.keystore
 
 # Server PID files
 server/*.pid
+
+# Firebase 服务账号密钥 (敏感文件，不提交)
+server/config/firebase-service-account.json

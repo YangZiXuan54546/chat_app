@@ -6,6 +6,7 @@
 #include "friend_manager.hpp"
 #include "database.hpp"
 #include "bot_manager.hpp"
+#include "fcm_manager.hpp"
 #include <chrono>
 #include <iostream>
 #include <fstream>
@@ -258,6 +259,11 @@ void Session::handle_message(MessageType type, uint32_t sequence, const json& bo
         // 消息撤回
         case MessageType::MESSAGE_RECALL:
             handle_message_recall(sequence, body);
+            break;
+            
+        // FCM Token 注册
+        case MessageType::FCM_TOKEN_REGISTER:
+            handle_fcm_token_register(sequence, body);
             break;
             
         default:
@@ -1317,6 +1323,44 @@ void Session::handle_message_recall(uint32_t sequence, const json& body) {
     }
     
     send(Protocol::create_response(MessageType::MESSAGE_RECALL_RESPONSE, sequence, response));
+}
+
+// ==================== FCM Token 注册处理器 ====================
+
+void Session::handle_fcm_token_register(uint32_t sequence, const json& body) {
+    if (!authenticated_) {
+        send(Protocol::create_error(sequence, 401, "Not authenticated"));
+        return;
+    }
+    
+    std::string fcm_token = body.value("fcm_token", "");
+    if (fcm_token.empty()) {
+        send(Protocol::create_error(sequence, 400, "FCM token is required"));
+        return;
+    }
+    
+    // 获取 FCM 管理器
+    if (!server_) {
+        send(Protocol::create_error(sequence, 500, "Server not available"));
+        return;
+    }
+    
+    auto fcm_manager = server_->get_fcm_manager();
+    if (!fcm_manager) {
+        send(Protocol::create_error(sequence, 500, "FCM not configured"));
+        return;
+    }
+    
+    // 注册 FCM Token
+    if (fcm_manager->register_token(user_id_, fcm_token)) {
+        json response = {
+            {"success", true},
+            {"user_id", user_id_}
+        };
+        send(Protocol::create_response(MessageType::FCM_TOKEN_REGISTER_RESPONSE, sequence, response));
+    } else {
+        send(Protocol::create_error(sequence, 500, "Failed to register FCM token"));
+    }
 }
 
 } // namespace chat

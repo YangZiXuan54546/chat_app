@@ -7,6 +7,7 @@
 #include "database.hpp"
 #include "bot_manager.hpp"
 #include "deepseek_client.hpp"
+#include "fcm_manager.hpp"
 #include <iostream>
 #include <thread>
 
@@ -229,6 +230,10 @@ void Server::set_managers(std::shared_ptr<UserManager> user_manager,
 
 void Server::set_bot_manager(std::shared_ptr<BotManager> bot_manager) {
     bot_manager_ = bot_manager;
+}
+
+void Server::set_fcm_manager(std::shared_ptr<FcmManager> fcm_manager) {
+    fcm_manager_ = fcm_manager;
 }
 
 Server::Stats Server::get_stats() {

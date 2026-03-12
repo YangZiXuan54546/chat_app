@@ -18,6 +18,7 @@ class GroupManager;
 class FriendManager;
 class Database;
 class BotManager;
+class FcmManager;
 
 class Server : public std::enable_shared_from_this<Server> {
 public:
@@ -68,6 +69,10 @@ public:
     // 设置机器人管理器
     void set_bot_manager(std::shared_ptr<BotManager> bot_manager);
     
+    // 设置 FCM 管理器
+    void set_fcm_manager(std::shared_ptr<FcmManager> fcm_manager);
+    std::shared_ptr<FcmManager> get_fcm_manager() { return fcm_manager_; }
+    
     // 获取 io_context（用于异步操作）
     IOContext& get_io_context() { return io_context_; }
     
@@ -108,6 +113,7 @@ private:
     std::shared_ptr<FriendManager> friend_manager_;
     std::shared_ptr<Database> database_;
     std::shared_ptr<BotManager> bot_manager_;
+    std::shared_ptr<FcmManager> fcm_manager_;
     
     // 统计信息
     std::atomic<size_t> total_connections_{0};

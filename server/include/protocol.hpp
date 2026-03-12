@@ -109,6 +109,10 @@ enum class MessageType : uint8_t {
     MESSAGE_RECALL = 120,
     MESSAGE_RECALL_RESPONSE = 121,
     
+    // FCM 推送
+    FCM_TOKEN_REGISTER = 130,
+    FCM_TOKEN_REGISTER_RESPONSE = 131,
+    
     // 错误
     ERROR = 255
 };

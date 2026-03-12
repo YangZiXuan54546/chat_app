@@ -37,8 +37,8 @@ sleep 1
 
 # 启动主聊天服务器 (带 DeepSeek API)
 echo -e "${YELLOW}启动聊天服务器 (端口 8888)...${NC}"
-cd "$SERVER_DIR/build"
-MEDIA_DIR="$MEDIA_DIR" ./chat_server --deepseek-api-key "$DEEPSEEK_API_KEY" &
+cd "$SERVER_DIR"
+MEDIA_DIR="$MEDIA_DIR" ./build/chat_server --deepseek-api-key "$DEEPSEEK_API_KEY" &
 CHAT_PID=$!
 echo -e "${GREEN}✓ 聊天服务器已启动 (PID: $CHAT_PID)${NC}"
 echo -e "${GREEN}✓ AI 机器人已启用 (DeepSeek API)${NC}"

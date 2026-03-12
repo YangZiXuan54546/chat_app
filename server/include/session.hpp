@@ -101,6 +101,9 @@ private:
     // 消息撤回
     void handle_message_recall(uint32_t sequence, const json& body);
     
+    // FCM Token 注册
+    void handle_fcm_token_register(uint32_t sequence, const json& body);
+    
 private:
     asio::io_context& io_context_;
     Socket socket_;

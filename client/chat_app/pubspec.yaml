@@ -18,6 +18,10 @@ dependencies:
   web_socket_channel: ^2.4.0
   http: ^1.1.0
   
+  # Firebase 推送
+  firebase_core: ^2.24.2
+  firebase_messaging: ^14.7.10
+  
   # 本地存储
   shared_preferences: ^2.2.2
   hive: ^2.2.3

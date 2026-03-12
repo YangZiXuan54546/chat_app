@@ -262,15 +262,54 @@
       ],
       "status": "completed",
       "completedAt": "2026-03-11T09:30:00Z"
+    },
+    {
+      "id": "F015",
+      "category": "technical",
+      "description": "服务器假死问题修复",
+      "priority": "high",
+      "steps": [
+        "使用 ThreadPool 替代 detached 线程",
+        "限制 conversations_ 最大数量",
+        "添加 LRU 清理机制",
+        "添加健康监控"
+      ],
+      "acceptanceCriteria": [
+        "线程数稳定在预期范围",
+        "内存使用稳定",
+        "服务器长时间运行不假死"
+      ],
+      "status": "completed",
+      "completedAt": "2026-03-12T10:00:00Z"
+    },
+    {
+      "id": "F016",
+      "category": "functional",
+      "description": "FCM 推送通知",
+      "priority": "high",
+      "steps": [
+        "配置 Firebase 项目和 google-services.json",
+        "实现 FcmManager 服务器端推送",
+        "实现 FcmService 客户端接收",
+        "集成 FCM Token 注册流程",
+        "离线消息推送触发"
+      ],
+      "acceptanceCriteria": [
+        "用户离线时收到推送通知",
+        "通知包含发送者和消息内容",
+        "点击通知打开对应聊天"
+      ],
+      "status": "completed",
+      "completedAt": "2026-03-12T12:00:00Z"
     }
   ],
   "statistics": {
-    "total": 14,
-    "completed": 14,
+    "total": 16,
+    "completed": 16,
     "inProgress": 0,
     "pending": 0,
     "byPriority": {
-      "high": 8,
+      "high": 10,
       "medium": 4,
       "low": 2
     }

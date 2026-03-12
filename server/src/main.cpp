@@ -5,6 +5,7 @@
 #include "group_manager.hpp"
 #include "friend_manager.hpp"
 #include "bot_manager.hpp"
+#include "fcm_manager.hpp"
 #include <iostream>
 #include <memory>
 #include <csignal>
@@ -129,6 +130,17 @@ int main(int argc, char* argv[]) {
         }
     } else {
         std::cout << "AI Bot not configured (use --deepseek-api-key to enable)" << std::endl;
+    }
+    
+    // 初始化 FCM 推送管理器
+    auto fcm_manager = std::make_shared<chat::FcmManager>(database);
+    std::string fcm_config_path = "config/firebase-service-account.json";
+    fcm_manager->set_config("chatapp-ae10f", fcm_config_path);
+    if (fcm_manager->is_configured()) {
+        g_server->set_fcm_manager(fcm_manager);
+        std::cout << "FCM Push Notification initialized successfully" << std::endl;
+    } else {
+        std::cout << "FCM not configured (firebase-service-account.json not found)" << std::endl;
     }
     
     // 设置信号处理

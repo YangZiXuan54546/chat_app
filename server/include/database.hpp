@@ -104,6 +104,11 @@ public:
     bool recall_group_message(uint64_t message_id, uint64_t user_id);
     bool get_message_sender(uint64_t message_id, uint64_t& sender_id, bool& is_group, uint64_t& group_id);
     
+    // FCM Token 相关
+    bool save_fcm_token(uint64_t user_id, const std::string& fcm_token);
+    std::string get_fcm_token(uint64_t user_id);
+    bool remove_fcm_token(uint64_t user_id);
+    
 private:
     MYSQL* connection_;
     std::mutex mutex_;

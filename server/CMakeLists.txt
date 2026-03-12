@@ -33,6 +33,7 @@ add_executable(chat_server
     src/deepseek_client.cpp
     src/bot_manager.cpp
     src/js_bot.cpp
+    src/fcm_manager.cpp
 )
 
 target_include_directories(chat_server PRIVATE

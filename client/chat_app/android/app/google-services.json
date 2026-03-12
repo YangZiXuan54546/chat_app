@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "458656133655",
+    "project_id": "chatapp-ae10f",
+    "storage_bucket": "chatapp-ae10f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:458656133655:android:cdda885450052de58ca252",
+        "android_client_info": {
+          "package_name": "com.ey.echat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-pudN-Uih42tZMxTNXk0YNYYZQNAS21Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

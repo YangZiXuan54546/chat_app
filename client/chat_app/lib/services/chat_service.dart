@@ -8,6 +8,7 @@ import 'network_service.dart';
 import 'message_database.dart';
 import 'notification_service.dart';
 import 'e2ee_service.dart';
+import 'fcm_service.dart';
 
 class ChatService extends ChangeNotifier {
   final NetworkService _network = NetworkService();
@@ -383,6 +384,9 @@ class ChatService extends ChangeNotifier {
         
         // 初始化端到端加密
         _initE2EE();
+        
+        // 注册 FCM Token
+        _registerFcmToken();
         
         // 加载好友列表
         _network.send(MessageType.friendList, {});
@@ -1719,6 +1723,26 @@ class ChatService extends ChangeNotifier {
     if (!found) {
       debugPrint('Message not found in memory: messageId=$messageId');
       debugPrint('Available conversation keys: ${_messages.keys.toList()}');
+    }
+  }
+  
+  // ==================== FCM 推送相关 ====================
+  
+  /// 注册 FCM Token 到服务器
+  Future<void> _registerFcmToken() async {
+    try {
+      final fcmService = FcmService();
+      await fcmService.init();
+      
+      final token = await fcmService.getToken();
+      if (token != null && token.isNotEmpty) {
+        debugPrint('注册 FCM Token: $token');
+        _network.send(MessageType.fcmTokenRegister, {
+          'fcm_token': token,
+        });
+      }
+    } catch (e) {
+      debugPrint('注册 FCM Token 失败: $e');
     }
   }
 }
