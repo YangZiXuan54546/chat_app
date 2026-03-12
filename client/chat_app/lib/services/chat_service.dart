@@ -698,7 +698,9 @@ class ChatService extends ChangeNotifier {
     _network.send(MessageType.friendAccept, {
       'friend_id': friendId,
     });
-    _loadFriendRequests();
+    // 立即从本地列表移除该请求（乐观更新）
+    _friendRequests.removeWhere((f) => f.user.userId == friendId);
+    notifyListeners();
   }
 
   /// 拒绝好友请求
@@ -706,7 +708,9 @@ class ChatService extends ChangeNotifier {
     _network.send(MessageType.friendReject, {
       'friend_id': friendId,
     });
-    _loadFriendRequests();
+    // 立即从本地列表移除该请求（乐观更新）
+    _friendRequests.removeWhere((f) => f.user.userId == friendId);
+    notifyListeners();
   }
 
   /// 删除好友
@@ -932,7 +936,7 @@ class ChatService extends ChangeNotifier {
       }
     }
     
-    // 创建新会话并插入到合适位置（置顶的在前面）
+    // 创建新会话
     final newConv = Conversation(
       peerId: peerId,
       groupId: groupId,
@@ -944,18 +948,14 @@ class ChatService extends ChangeNotifier {
       isMuted: isMuted,
     );
     
-    // 置顶的会话放在前面
-    if (isPinned) {
-      final pinnedCount = _conversations.where((c) => c.isPinned).length;
-      _conversations.insert(pinnedCount, newConv);
-    } else {
-      _conversations.insert(0, newConv);
-    }
+    // 插入会话列表
+    _conversations.insert(0, newConv);
     
-    // 如果原来是置顶的，重新排序
-    if (isPinned) {
-      _sortConversations();
-    }
+    // 重新排序（置顶在前，按时间排序）
+    _sortConversations();
+    
+    // 通知 UI 更新
+    notifyListeners();
   }
   
   /// 排序会话列表（置顶在前，其他按时间排序）
@@ -1117,9 +1117,8 @@ class ChatService extends ChangeNotifier {
   void _handleFriendAcceptResponse(Map<String, dynamic> body) {
     final code = body['code'] ?? -1;
     if (code == 0) {
-      // 刷新好友列表和好友请求列表
+      // 刷新好友列表
       _loadFriendList();
-      _loadFriendRequests();
     }
     notifyListeners();
   }
@@ -1127,10 +1126,7 @@ class ChatService extends ChangeNotifier {
   /// 处理拒绝好友请求响应
   void _handleFriendRejectResponse(Map<String, dynamic> body) {
     final code = body['code'] ?? -1;
-    if (code == 0) {
-      // 刷新好友请求列表
-      _loadFriendRequests();
-    }
+    // 已经在 rejectFriend 中乐观移除了
     notifyListeners();
   }
 
