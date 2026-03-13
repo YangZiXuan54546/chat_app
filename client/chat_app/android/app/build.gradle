@@ -60,8 +60,9 @@ android {
         
         multiDexEnabled true
         
-        // JPush 配置
+        // JPush 配置和 Flutter 占位符
         manifestPlaceholders = [
+            applicationName : "io.flutter.app.FlutterApplication",
             JPUSH_PKGNAME : applicationId,
             JPUSH_APPKEY : "16d9f5ae7a467d54f3d9f775",
             JPUSH_CHANNEL : "developer-default",
