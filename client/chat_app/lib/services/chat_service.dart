@@ -1765,7 +1765,7 @@ class ChatService extends ChangeNotifier {
   /// 初始化极光推送
   Future<void> _initJPush() async {
     try {
-      // 设置通知回调
+      // JPush 已在 main.dart 中初始化，这里只需要设置回调和注册 Token
       _jPush.onNotificationReceived = (message) {
         debugPrint('收到 JPush 通知: $message');
       };
@@ -1774,38 +1774,28 @@ class ChatService extends ChangeNotifier {
         debugPrint('点击 JPush 通知: $message');
       };
       
-      // 设置 Registration ID 回调
-      _jPush.onRegistrationIdReceived = (registrationId) {
-        debugPrint('收到 JPush Registration ID: $registrationId');
-        // 注册到服务器
+      // 获取 Registration ID 并注册
+      final registrationId = _jPush.registrationId;
+      if (registrationId != null && registrationId.isNotEmpty) {
+        debugPrint('JPush Registration ID: $registrationId');
         registerJPushToken(registrationId);
-        // 设置别名
         if (_currentUser != null) {
           _jPush.setAlias('user_${_currentUser!.userId}');
         }
-      };
-      
-      // 初始化 JPush
-      final success = await _jPush.init();
-      if (!success) {
-        debugPrint('JPush 初始化失败');
-        return;
+      } else {
+        // 如果还没有获取到，设置回调等待
+        _jPush.onRegistrationIdReceived = (regId) {
+          debugPrint('收到 JPush Registration ID: $regId');
+          registerJPushToken(regId);
+          if (_currentUser != null) {
+            _jPush.setAlias('user_${_currentUser!.userId}');
+          }
+        };
       }
       
-      // 申请通知权限
-      await _jPush.requestPermission();
-      
-      // 如果已经有 Registration ID，立即注册
-      if (_jPush.registrationId != null && _jPush.registrationId!.isNotEmpty) {
-        registerJPushToken(_jPush.registrationId!);
-        if (_currentUser != null) {
-          _jPush.setAlias('user_${_currentUser!.userId}');
-        }
-      }
-      
-      debugPrint('JPush 初始化完成');
+      debugPrint('JPush 配置完成');
     } catch (e) {
-      debugPrint('初始化 JPush 失败: $e');
+      debugPrint('配置 JPush 失败: $e');
     }
   }
   

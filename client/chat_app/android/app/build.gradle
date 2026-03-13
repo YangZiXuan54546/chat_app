@@ -59,6 +59,13 @@ android {
         versionName flutterVersionName
         
         multiDexEnabled true
+        
+        // JPush 配置
+        manifestPlaceholders = [
+            JPUSH_PKGNAME : applicationId,
+            JPUSH_APPKEY : "16d9f5ae7a467d54f3d9f775",
+            JPUSH_CHANNEL : "developer-default",
+        ]
     }
 
     signingConfigs {

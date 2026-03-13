@@ -6,6 +6,7 @@ import 'services/message_database.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
 import 'services/background_service.dart';
+import 'services/jpush_service.dart';
 import 'screens/splash_screen.dart';
 import 'providers/app_provider.dart';
 
@@ -21,6 +22,13 @@ void main() async {
     
     // 初始化本地通知服务
     await NotificationService().init();
+    
+    // 初始化 JPush (国内推送)
+    final storage = StorageService();
+    if (!storage.useFCMPush) {
+      await JPushService().init();
+      debugPrint('JPush 初始化完成');
+    }
   } catch (e) {
     debugPrint('初始化基础服务错误: $e');
   }
