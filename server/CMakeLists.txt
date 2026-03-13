@@ -34,6 +34,7 @@ add_executable(chat_server
     src/bot_manager.cpp
     src/js_bot.cpp
     src/fcm_manager.cpp
+    src/jpush_manager.cpp
 )
 
 target_include_directories(chat_server PRIVATE

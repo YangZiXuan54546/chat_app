@@ -7,6 +7,7 @@
 #include "database.hpp"
 #include "bot_manager.hpp"
 #include "fcm_manager.hpp"
+#include "jpush_manager.hpp"
 #include <chrono>
 #include <iostream>
 #include <fstream>
@@ -632,10 +633,53 @@ void Session::handle_private_message(uint32_t sequence, const json& body) {
         json response = message.to_json();
         send(Protocol::create_response(MessageType::PRIVATE_MESSAGE_RESPONSE, sequence, response));
         
-        // 转发给接收者（如果在线）
+        // 转发给接收者（如果在线且活跃）
+        bool receiver_active = false;
         if (server_) {
-            server_->send_to_user(receiver_id, 
-                Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, message.to_json()));
+            receiver_active = server_->is_user_active(receiver_id);
+            if (receiver_active) {
+                server_->send_to_user(receiver_id, 
+                    Protocol::serialize(MessageType::PRIVATE_MESSAGE, 0, message.to_json()));
+            }
+        }
+        
+        // 如果接收者不活跃（离线或心跳超时），发送推送通知
+        if (!receiver_active && server_) {
+            // 获取发送者信息
+            std::string sender_name = "用户";
+            if (user_manager_) {
+                UserInfo sender;
+                if (user_manager_->get_user_info(user_id_, sender)) {
+                    sender_name = sender.nickname.empty() ? sender.username : sender.nickname;
+                }
+            }
+            
+            // 构建通知内容
+            std::string notification_body = content;
+            if (media_type_int == 1) {
+                notification_body = "[图片]";
+            } else if (media_type_int == 2) {
+                notification_body = "[文件]";
+            }
+            
+            // 优先使用 JPush (国内)
+            auto jpush_manager = server_->get_jpush_manager();
+            if (jpush_manager) {
+                jpush_manager->send_message_notification(receiver_id, user_id_, sender_name, notification_body);
+                std::cout << "JPush notification sent to offline user: " << receiver_id << std::endl;
+            }
+            
+            // 同时发送 FCM (国外)
+            auto fcm_manager = server_->get_fcm_manager();
+            if (fcm_manager) {
+                json data = {
+                    {"type", "private_message"},
+                    {"sender_id", user_id_},
+                    {"message_id", message.message_id}
+                };
+                fcm_manager->send_notification(receiver_id, sender_name, notification_body, data);
+                std::cout << "FCM notification sent to offline user: " << receiver_id << std::endl;
+            }
         }
         
         // 检查是否发送给机器人
@@ -948,8 +992,58 @@ void Session::handle_group_message(uint32_t sequence, const json& body) {
         json response = message.to_json();
         send(Protocol::create_response(MessageType::GROUP_MESSAGE_RESPONSE, sequence, response));
         
-        // 广播给群成员
-        server_->broadcast_to_group(group_id, Protocol::serialize(MessageType::GROUP_MESSAGE, 0, message.to_json()));
+        // 广播给在线群成员，并对离线成员发送 FCM 推送
+        if (server_) {
+            // 获取群成员列表
+            auto member_ids = group_manager_->get_group_members(group_id);
+            
+            // 获取群组信息
+            std::string group_name = "群聊";
+            GroupInfo group;
+            if (group_manager_->get_group_info(group_id, group)) {
+                group_name = group.group_name;
+            }
+            
+            // 获取发送者信息
+            std::string sender_name = "用户";
+            if (user_manager_) {
+                UserInfo sender;
+                if (user_manager_->get_user_info(user_id_, sender)) {
+                    sender_name = sender.nickname.empty() ? sender.username : sender.nickname;
+                }
+            }
+            
+            // 构建通知内容
+            std::string notification_body = sender_name + ": " + content;
+            if (media_type_int == 1) {
+                notification_body = sender_name + ": [图片]";
+            } else if (media_type_int == 2) {
+                notification_body = sender_name + ": [文件]";
+            }
+            
+            auto fcm_manager = server_->get_fcm_manager();
+            
+            for (uint64_t member_id : member_ids) {
+                // 跳过发送者自己
+                if (member_id == user_id_) continue;
+                
+                if (server_->is_user_active(member_id)) {
+                    // 活跃成员，直接发送消息
+                    server_->send_to_user(member_id, 
+                        Protocol::serialize(MessageType::GROUP_MESSAGE, 0, message.to_json()));
+                } else if (fcm_manager) {
+                    // 非活跃成员（离线或心跳超时），发送 FCM 推送
+                    json data = {
+                        {"type", "group_message"},
+                        {"group_id", group_id},
+                        {"sender_id", user_id_},
+                        {"message_id", message.message_id}
+                    };
+                    fcm_manager->send_notification(member_id, group_name, notification_body, data);
+                    std::cout << "FCM notification sent to offline/inactive group member: " << member_id << std::endl;
+                }
+            }
+        }
     } else {
         send(Protocol::create_error(sequence, 500, error));
     }

@@ -6,6 +6,7 @@
 #include "friend_manager.hpp"
 #include "bot_manager.hpp"
 #include "fcm_manager.hpp"
+#include "jpush_manager.hpp"
 #include <iostream>
 #include <memory>
 #include <csignal>
@@ -141,6 +142,20 @@ int main(int argc, char* argv[]) {
         std::cout << "FCM Push Notification initialized successfully" << std::endl;
     } else {
         std::cout << "FCM not configured (firebase-service-account.json not found)" << std::endl;
+    }
+    
+    // 初始化 JPush 极光推送管理器 (国内)
+    auto jpush_manager = std::make_shared<chat::JPushManager>(database);
+    const char* jpush_app_key = std::getenv("JPUSH_APP_KEY");
+    const char* jpush_master_secret = std::getenv("JPUSH_MASTER_SECRET");
+    std::string jpush_key = jpush_app_key ? jpush_app_key : "";
+    std::string jpush_secret = jpush_master_secret ? jpush_master_secret : "";
+    jpush_manager->set_config(jpush_key, jpush_secret);
+    if (jpush_manager->is_configured()) {
+        g_server->set_jpush_manager(jpush_manager);
+        std::cout << "JPush (极光推送) initialized successfully" << std::endl;
+    } else {
+        std::cout << "JPush not configured (set JPUSH_APP_KEY and JPUSH_MASTER_SECRET env vars)" << std::endl;
     }
     
     // 设置信号处理

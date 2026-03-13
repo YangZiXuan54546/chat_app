@@ -11,12 +11,14 @@ import 'e2ee_service.dart';
 import 'fcm_service.dart';
 import 'background_service.dart';
 import 'storage_service.dart';
+import 'jpush_service.dart';
 
 class ChatService extends ChangeNotifier {
   final NetworkService _network = NetworkService();
   final MessageDatabase _messageDb = MessageDatabase();
   final NotificationService _notificationService = NotificationService();
   final E2EEService _e2ee = E2EEService();
+  final JPushService _jPush = JPushService();
   
   User? _currentUser;
   bool _isConnected = false;
@@ -1727,8 +1729,8 @@ class ChatService extends ChangeNotifier {
   // ==================== 推送通知相关 ====================
   
   /// 注册推送通知 Token 到服务器
-  /// FCM 模式: 注册 FCM Token
-  /// 本地服务模式: 不需要注册
+  /// FCM 模式: 注册 FCM Token (国外)
+  /// JPush 模式: 注册 JPush Registration ID (国内)
   Future<void> _registerFcmToken() async {
     try {
       final storage = StorageService();
@@ -1746,10 +1748,10 @@ class ChatService extends ChangeNotifier {
           });
         }
       } else {
-        // 本地服务模式 (国内)
-        debugPrint('使用本地后台服务模式，不需要注册 FCM Token');
+        // JPush 模式 (国内) - 优先使用极光推送
+        await _initJPush();
         
-        // 确保后台服务正在运行
+        // 同时启动本地后台服务作为备选
         final bgService = BackgroundService();
         if (!bgService.isRunning) {
           await bgService.startService();
@@ -1758,5 +1760,49 @@ class ChatService extends ChangeNotifier {
     } catch (e) {
       debugPrint('注册推送通知失败: $e');
     }
+  }
+  
+  /// 初始化极光推送
+  Future<void> _initJPush() async {
+    try {
+      // 初始化 JPush
+      final success = await _jPush.init();
+      if (!success) {
+        debugPrint('JPush 初始化失败');
+        return;
+      }
+      
+      // 设置通知回调
+      _jPush.onNotificationReceived = (message) {
+        debugPrint('收到 JPush 通知: $message');
+        // 可以在这里处理自定义消息
+      };
+      
+      _jPush.onNotificationOpened = (message) {
+        debugPrint('点击 JPush 通知: $message');
+        // TODO: 根据消息内容跳转到对应页面
+      };
+      
+      // 申请通知权限
+      await _jPush.requestPermission();
+      
+      // 设置别名 (用户ID)
+      if (_currentUser != null) {
+        await _jPush.setAlias('user_${_currentUser!.userId}');
+      }
+      
+      debugPrint('JPush 初始化成功');
+    } catch (e) {
+      debugPrint('初始化 JPush 失败: $e');
+    }
+  }
+  
+  /// 注册 JPush Token 到服务器
+  void registerJPushToken(String registrationId) {
+    debugPrint('注册 JPush Registration ID: $registrationId');
+    _network.send(MessageType.fcmTokenRegister, {
+      'fcm_token': registrationId,
+      'token_type': 'jpush',
+    });
   }
 }

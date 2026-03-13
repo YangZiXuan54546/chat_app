@@ -22,6 +22,7 @@ class FriendManager;
 class Database;
 class BotManager;
 class FcmManager;
+class JPushManager;
 
 class Server : public std::enable_shared_from_this<Server> {
 public:
@@ -58,6 +59,7 @@ public:
     void set_user_online(uint64_t user_id, Session::ptr session);
     void set_user_offline(uint64_t user_id);
     bool is_user_online(uint64_t user_id);
+    bool is_user_active(uint64_t user_id);  // 检查用户是否活跃（最近有心跳）
     
     // 获取在线用户列表
     std::vector<uint64_t> get_online_users();
@@ -75,6 +77,10 @@ public:
     // 设置 FCM 管理器
     void set_fcm_manager(std::shared_ptr<FcmManager> fcm_manager);
     std::shared_ptr<FcmManager> get_fcm_manager() { return fcm_manager_; }
+    
+    // 设置 JPush 管理器
+    void set_jpush_manager(std::shared_ptr<JPushManager> jpush_manager);
+    std::shared_ptr<JPushManager> get_jpush_manager() { return jpush_manager_; }
     
     // 获取 io_context（用于异步操作）
     IOContext& get_io_context() { return io_context_; }
@@ -126,6 +132,7 @@ private:
     std::shared_ptr<Database> database_;
     std::shared_ptr<BotManager> bot_manager_;
     std::shared_ptr<FcmManager> fcm_manager_;
+    std::shared_ptr<JPushManager> jpush_manager_;
     
     // 统计信息
     std::atomic<size_t> total_connections_{0};

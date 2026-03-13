@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     
     <!-- 网络权限 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     
     <!-- 存储权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
@@ -43,6 +45,19 @@
     <!-- 小米手机后台活动权限 -->
     <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND"/>
     <uses-permission android:name="android.permission.REQUEST_COMPANION_USE_DATA_IN_BACKGROUND"/>
+    
+    <!-- JPush 极光推送权限 -->
+    <uses-permission android:name="android.permission.RECEIVE_USER_PRESENT"/>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.MANAGE_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    
+    <!-- JPush Required -->
+    <uses-permission android:name="${applicationId}.permission.JPUSH_MESSAGE"/>
+    <permission
+        android:name="${applicationId}.permission.JPUSH_MESSAGE"
+        android:protectionLevel="signature"/>
     
     <application
         android:label="Chat App"
@@ -103,5 +118,71 @@
                 <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
             </intent-filter>
         </receiver>
+        
+        <!-- JPush 极光推送配置 -->
+        <meta-data
+            android:name="JPUSH_CHANNEL"
+            android:value="developer-default"/>
+        <meta-data
+            android:name="JPUSH_APPKEY"
+            android:value="16d9f5ae7a467d54f3d9f775"/>
+        
+        <!-- JPush Required SDK 核心功能 -->
+        <receiver
+            android:name="cn.jpush.android.service.PushReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter android:priority="1000">
+                <action android:name="cn.jpush.android.intent.NOTIFICATION_RECEIVED_PROXY"/>
+                <category android:name="${applicationId}"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT"/>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
+            </intent-filter>
+        </receiver>
+        
+        <!-- JPush SDK Service -->
+        <service
+            android:name="cn.jpush.android.service.PushService"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":pushcore">
+            <intent-filter>
+                <action android:name="cn.jpush.android.intent.REGISTER"/>
+                <action android:name="cn.jpush.android.intent.REPORT"/>
+                <action android:name="cn.jpush.android.intent.PushService"/>
+                <action android:name="cn.jpush.android.intent.PUSH_TIME"/>
+            </intent-filter>
+        </service>
+        
+        <!-- JPush Daemon Service -->
+        <service
+            android:name="cn.jpush.android.service.DaemonService"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cn.jpush.android.intent.DaemonService"/>
+                <category android:name="${applicationId}"/>
+            </intent-filter>
+        </service>
+        
+        <!-- JPush Activity for notification click -->
+        <activity
+            android:name="cn.jpush.android.ui.PopWinActivity"
+            android:exported="true"
+            android:theme="@style/MyDialogStyle"/>
+        
+        <activity
+            android:name="cn.jpush.android.ui.PushActivity"
+            android:configChanges="orientation|keyboardHidden"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoTitleBar">
+            <intent-filter>
+                <action android:name="cn.jpush.android.ui.PushActivity"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="${applicationId}"/>
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

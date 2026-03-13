@@ -192,12 +192,38 @@ void Server::broadcast_to_group(uint64_t group_id, const std::vector<uint8_t>& d
 void Server::send_to_user(uint64_t user_id, const std::vector<uint8_t>& data) {
     auto session = get_session(user_id);
     if (session) {
-        std::cout << "Sending message to online user: " << user_id << std::endl;
-        session->send(data);
-        ++messages_processed_;
+        // 检查用户是否真的活跃（最近有心跳）
+        auto last_heartbeat = session->get_last_heartbeat();
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_heartbeat).count();
+        
+        // 如果心跳超时，认为用户不活跃（可能在后台被挂起）
+        if (elapsed > config_.heartbeat_timeout) {
+            std::cout << "User " << user_id << " session exists but inactive (heartbeat timeout: " 
+                      << elapsed << "s), message not delivered" << std::endl;
+            // 注意：这里不发送消息，但也不返回错误
+            // 调用者应该检查 is_user_online 来决定是否发送 FCM
+            session->send(data);  // 仍然尝试发送，但调用者应该同时发送 FCM
+            ++messages_processed_;
+        } else {
+            std::cout << "Sending message to online user: " << user_id << std::endl;
+            session->send(data);
+            ++messages_processed_;
+        }
     } else {
         std::cout << "User " << user_id << " is not online, message not delivered in real-time" << std::endl;
     }
+}
+
+bool Server::is_user_active(uint64_t user_id) {
+    auto session = get_session(user_id);
+    if (!session) return false;
+    
+    auto last_heartbeat = session->get_last_heartbeat();
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_heartbeat).count();
+    
+    return elapsed <= config_.heartbeat_timeout;
 }
 
 void Server::set_user_online(uint64_t user_id, Session::ptr session) {
@@ -254,6 +280,10 @@ void Server::set_bot_manager(std::shared_ptr<BotManager> bot_manager) {
 
 void Server::set_fcm_manager(std::shared_ptr<FcmManager> fcm_manager) {
     fcm_manager_ = fcm_manager;
+}
+
+void Server::set_jpush_manager(std::shared_ptr<JPushManager> jpush_manager) {
+    jpush_manager_ = jpush_manager;
 }
 
 Server::Stats Server::get_stats() {
