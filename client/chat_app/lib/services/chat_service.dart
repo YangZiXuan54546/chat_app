@@ -1765,13 +1765,6 @@ class ChatService extends ChangeNotifier {
   /// 初始化极光推送
   Future<void> _initJPush() async {
     try {
-      // 初始化 JPush
-      final success = await _jPush.init();
-      if (!success) {
-        debugPrint('JPush 初始化失败');
-        return;
-      }
-      
       // 设置通知回调
       _jPush.onNotificationReceived = (message) {
         debugPrint('收到 JPush 通知: $message');
@@ -1782,6 +1775,13 @@ class ChatService extends ChangeNotifier {
         debugPrint('点击 JPush 通知: $message');
         // TODO: 根据消息内容跳转到对应页面
       };
+      
+      // 初始化 JPush
+      final success = await _jPush.init();
+      if (!success) {
+        debugPrint('JPush 初始化失败');
+        return;
+      }
       
       // 申请通知权限
       await _jPush.requestPermission();

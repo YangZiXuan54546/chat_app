@@ -29,9 +29,6 @@ class JPushService {
     if (_isInitialized) return true;
     
     try {
-      // 设置调试模式
-      _jPush.setDebugMode(enable: kDebugMode);
-      
       // 初始化 JPush
       _jPush.addEventHandler(
         // 接收通知回调
@@ -48,14 +45,6 @@ class JPushService {
         // 接收自定义消息回调
         onReceiveMessage: (Map<String, dynamic> message) async {
           debugPrint('JPush onReceiveMessage: $message');
-        },
-        // 通知授权状态变化
-        onNotifyMessageUnShow: (Map<String, dynamic> message) async {
-          debugPrint('JPush onNotifyMessageUnShow: $message');
-        },
-        // 通知设置状态
-        onNotifyMessageOpened: (Map<String, dynamic> message) async {
-          debugPrint('JPush onNotifyMessageOpened: $message');
         },
         // 连接状态
         onConnected: (Map<String, dynamic> message) async {
@@ -166,14 +155,9 @@ class JPushService {
   Future<void> requestPermission() async {
     if (Platform.isAndroid) {
       try {
-        await _jPush.applyPushAuthority(
-          NotificationSettingsIOS(
-            sound: true,
-            alert: true,
-            badge: true,
-          ),
-        );
-        debugPrint('JPush 申请通知权限');
+        // jpush_flutter 的 applyPushAuthority 方法用于 iOS
+        // Android 需要在原生代码中请求权限
+        debugPrint('JPush 通知权限由系统管理');
       } catch (e) {
         debugPrint('JPush 申请权限失败: $e');
       }
