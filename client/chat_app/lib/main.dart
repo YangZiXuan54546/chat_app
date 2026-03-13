@@ -22,43 +22,48 @@ void main() async {
     
     // 初始化本地通知服务
     await NotificationService().init();
-    
-    // 初始化 JPush (国内推送)
-    final storage = StorageService();
-    if (!storage.useFCMPush) {
-      await JPushService().init();
-      debugPrint('JPush 初始化完成');
-    }
   } catch (e) {
     debugPrint('初始化基础服务错误: $e');
   }
   
-  // 后台服务初始化改为异步，不阻塞主流程
-  _initBackgroundService();
+  // JPush 和后台服务初始化改为异步，不阻塞主流程
+  _initPushAndBackgroundService();
   
   runApp(const ChatApp());
 }
 
-/// 异步初始化后台服务
-void _initBackgroundService() async {
+/// 异步初始化推送和后台服务
+void _initPushAndBackgroundService() async {
   try {
     final storage = StorageService();
-    final useFCM = storage.useFCMPush;
     
-    if (useFCM) {
+    if (!storage.useFCMPush) {
+      // JPush 模式 (国内推送)
+      try {
+        final success = await JPushService().init().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            debugPrint('JPush 初始化超时，继续启动');
+            return false;
+          },
+        );
+        debugPrint('JPush 初始化完成: $success');
+      } catch (e) {
+        debugPrint('JPush 初始化错误: $e');
+      }
+      
+      // 本地后台服务模式 (国内)
+      await BackgroundService().init(type: BackgroundServiceType.local);
+      final started = await BackgroundService().startService();
+      debugPrint('本地后台服务启动: $started');
+    } else {
       // FCM 模式 (国外)
       await FcmService().init();
       BackgroundService().setServiceType(BackgroundServiceType.fcm);
-    } else {
-      // 本地后台服务模式 (国内)
-      await BackgroundService().init(type: BackgroundServiceType.local);
-      // 自动启动后台服务
-      final started = await BackgroundService().startService();
-      debugPrint('本地后台服务启动: $started');
     }
-    debugPrint('后台服务初始化完成');
+    debugPrint('推送和后台服务初始化完成');
   } catch (e) {
-    debugPrint('后台服务初始化错误: $e');
+    debugPrint('推送和后台服务初始化错误: $e');
   }
 }
 
