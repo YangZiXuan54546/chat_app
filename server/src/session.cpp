@@ -103,7 +103,17 @@ void Session::do_read_body(uint32_t body_size) {
             Protocol::parse_header(header_buffer_.data(), header_buffer_.size(), header);
             json body = Protocol::parse_body(body_buffer_.data(), body_size);
             
-            handle_message(header.type, header.sequence, body);
+            // 在线程池中处理消息，避免阻塞 io_context
+            auto self = shared_from_this();
+            auto server = server_;
+            if (server) {
+                // 获取线程池并提交任务
+                asio::post(io_context_, [this, self, header, body]() {
+                    handle_message(header.type, header.sequence, body);
+                });
+            } else {
+                handle_message(header.type, header.sequence, body);
+            }
             
             // 继续读取下一条消息
             do_read_header();

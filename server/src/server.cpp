@@ -35,6 +35,9 @@ bool Server::start() {
     
     running_ = true;
     
+    // 创建线程池用于数据库操作
+    thread_pool_ = std::make_unique<ThreadPool>(4);
+    
     // 创建 work guard 防止 io_context 在没有任务时停止
     work_guard_ = std::make_unique<asio::executor_work_guard<IOContext::executor_type>>(
         io_context_.get_executor());
@@ -71,6 +74,11 @@ void Server::stop() {
     }
     
     running_ = false;
+    
+    // 停止线程池
+    if (thread_pool_) {
+        thread_pool_->stop();
+    }
     
     // 先重置 work_guard，允许 io_context 停止
     work_guard_.reset();

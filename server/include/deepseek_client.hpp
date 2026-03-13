@@ -13,6 +13,7 @@
 #include <atomic>
 #include <thread>
 #include <asio.hpp>
+#include "thread_pool.hpp"
 
 namespace chat {
 
@@ -35,29 +36,6 @@ struct DeepSeekResponse {
     std::string content;
     std::string error;
     int tokens_used = 0;
-};
-
-/**
- * 简单线程池 - 用于管理 HTTP 请求线程
- */
-class ThreadPool {
-public:
-    explicit ThreadPool(size_t num_threads);
-    ~ThreadPool();
-    
-    template<typename F>
-    void enqueue(F&& task);
-    
-    void stop();
-    
-private:
-    void worker_thread();
-    
-    std::vector<std::thread> threads_;
-    std::deque<std::function<void()>> tasks_;
-    std::mutex mutex_;
-    std::condition_variable condition_;
-    std::atomic<bool> stop_{false};
 };
 
 /**

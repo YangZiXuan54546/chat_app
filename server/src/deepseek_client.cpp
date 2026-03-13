@@ -8,59 +8,6 @@ using json = nlohmann::json;
 
 namespace chat {
 
-// ==================== ThreadPool 实现 ====================
-
-ThreadPool::ThreadPool(size_t num_threads) {
-    for (size_t i = 0; i < num_threads; ++i) {
-        threads_.emplace_back(&ThreadPool::worker_thread, this);
-    }
-}
-
-ThreadPool::~ThreadPool() {
-    stop();
-}
-
-void ThreadPool::stop() {
-    stop_ = true;
-    condition_.notify_all();
-    for (auto& thread : threads_) {
-        if (thread.joinable()) {
-            thread.join();
-        }
-    }
-    threads_.clear();
-}
-
-void ThreadPool::worker_thread() {
-    while (true) {
-        std::function<void()> task;
-        {
-            std::unique_lock<std::mutex> lock(mutex_);
-            condition_.wait(lock, [this] {
-                return stop_ || !tasks_.empty();
-            });
-            
-            if (stop_ && tasks_.empty()) {
-                return;
-            }
-            
-            task = std::move(tasks_.front());
-            tasks_.pop_front();
-        }
-        
-        task();
-    }
-}
-
-template<typename F>
-void ThreadPool::enqueue(F&& task) {
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        tasks_.emplace_back(std::forward<F>(task));
-    }
-    condition_.notify_one();
-}
-
 // ==================== CURL 回调函数 ====================
 
 static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {

@@ -5,9 +5,12 @@
 #include <map>
 #include <mutex>
 #include <functional>
+#include <thread>
+#include <atomic>
 #include <asio.hpp>
 #include "protocol.hpp"
 #include "session.hpp"
+#include "thread_pool.hpp"
 
 namespace chat {
 
@@ -76,6 +79,9 @@ public:
     // 获取 io_context（用于异步操作）
     IOContext& get_io_context() { return io_context_; }
     
+    // 获取线程池（用于数据库操作）
+    ThreadPool& get_thread_pool() { return *thread_pool_; }
+    
     // 获取服务器统计信息
     struct Stats {
         size_t total_connections = 0;
@@ -99,6 +105,9 @@ private:
     
     // Work guard - 防止 io_context 在没有任务时停止
     std::unique_ptr<asio::executor_work_guard<IOContext::executor_type>> work_guard_;
+    
+    // 线程池用于处理数据库操作
+    std::unique_ptr<ThreadPool> thread_pool_;
     
     std::map<uint64_t, Session::ptr> sessions_;
     std::mutex sessions_mutex_;
