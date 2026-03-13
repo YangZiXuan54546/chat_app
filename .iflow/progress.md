@@ -542,3 +542,30 @@
   - `server/src/jpush_manager.cpp` - JPush 管理器实现
   - `server/src/main.cpp` - JPush 初始化
   - `/root/test_jpush_auth.py` - 认证测试脚本
+
+---
+
+## [2026-03-14] 完成功能 #F018 - 极光推送客户端初始化
+- 实现内容:
+  - 修复 JPush 初始化阻塞问题
+    - 移除 `await Future.delayed()` 阻塞调用
+    - 添加异步非阻塞的 `_getRegistrationIdAsync()` 方法
+    - 使用重试机制获取 Registration ID
+  - 在 main.dart 中添加 JPush 初始化
+    - 异步非阻塞初始化 `_initJPush()`
+    - 仅在非 FCM 模式下初始化 JPush
+  - 登录成功后设置 JPush 别名
+    - 格式: `user_${userId}`
+    - 在 `_initJPush()` 和 `onRegistrationIdReceived` 回调中设置
+  - 退出登录时删除别名
+    - 在 `logout()` 方法中调用 `_jPush.deleteAlias()`
+
+- 测试结果: 代码审查通过
+  - JPush 非阻塞初始化: ✓
+  - 别名设置逻辑: ✓
+  - 别名删除逻辑: ✓
+
+- 相关文件:
+  - `client/chat_app/lib/main.dart` - JPush 初始化
+  - `client/chat_app/lib/services/jpush_service.dart` - 异步获取 Registration ID
+  - `client/chat_app/lib/services/chat_service.dart` - 别名设置和删除

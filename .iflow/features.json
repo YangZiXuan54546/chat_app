@@ -336,7 +336,8 @@
         "用户登录后 JPush 别名正确设置",
         "退出登录后别名被清除"
       ],
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2026-03-14T00:00:00Z"
     },
     {
       "id": "F019",

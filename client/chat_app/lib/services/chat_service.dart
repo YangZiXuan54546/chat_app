@@ -365,6 +365,10 @@ class ChatService extends ChangeNotifier {
     _isReconnecting = false;
     _reconnectLoginSuccess = false;
     _currentUser = null;
+    
+    // 删除 JPush 别名
+    _jPush.deleteAlias();
+    
     notifyListeners();
   }
 

@@ -6,6 +6,7 @@ import 'services/message_database.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
 import 'services/background_service.dart';
+import 'services/jpush_service.dart';
 import 'screens/splash_screen.dart';
 import 'providers/app_provider.dart';
 
@@ -28,7 +29,25 @@ void main() async {
   // 后台服务初始化改为异步，不阻塞主流程
   _initBackgroundService();
   
+  // JPush 初始化改为异步非阻塞
+  _initJPush();
+  
   runApp(const ChatApp());
+}
+
+/// 异步初始化 JPush (非阻塞)
+void _initJPush() async {
+  try {
+    final storage = StorageService();
+    // 仅在非 FCM 模式下初始化 JPush
+    if (!storage.useFCMPush) {
+      final jpush = JPushService();
+      await jpush.init();
+      debugPrint('JPush 初始化完成');
+    }
+  } catch (e) {
+    debugPrint('JPush 初始化错误: $e');
+  }
 }
 
 /// 异步初始化后台服务

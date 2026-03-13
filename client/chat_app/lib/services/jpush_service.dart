@@ -58,24 +58,12 @@ class JPushService {
         debug: kDebugMode,
       );
       
-      // 等待一下让 JPush 初始化完成
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // 获取 Registration ID
-      _registrationId = await _jPush.getRegistrationID();
-      debugPrint('JPush Registration ID: $_registrationId');
-      
-      if (_registrationId != null && _registrationId!.isNotEmpty) {
-        // 保存到本地
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_keyRegistrationId, _registrationId!);
-        
-        // 通知外部
-        onRegistrationIdReceived?.call(_registrationId!);
-      }
-      
       _isInitialized = true;
-      debugPrint('JPush 初始化成功');
+      debugPrint('JPush 初始化完成 (异步)');
+      
+      // 异步获取 Registration ID（不阻塞主流程）
+      _getRegistrationIdAsync();
+      
       return true;
     } catch (e) {
       debugPrint('JPush 初始化失败: $e');
@@ -145,5 +133,35 @@ class JPushService {
     } catch (e) {
       debugPrint('JPush 停止失败: $e');
     }
+  }
+  
+  /// 异步获取 Registration ID（非阻塞）
+  void _getRegistrationIdAsync() {
+    Future(() async {
+      // 最多尝试 10 次，每次间隔 500ms
+      for (int i = 0; i < 10; i++) {
+        try {
+          final regId = await _jPush.getRegistrationID();
+          if (regId != null && regId.isNotEmpty) {
+            _registrationId = regId;
+            debugPrint('JPush Registration ID: $_registrationId');
+            
+            // 保存到本地
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(_keyRegistrationId, _registrationId!);
+            
+            // 通知外部
+            onRegistrationIdReceived?.call(_registrationId!);
+            return;
+          }
+        } catch (e) {
+          debugPrint('获取 JPush Registration ID 失败 (尝试 ${i + 1}): $e');
+        }
+        
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
+      debugPrint('未能获取 JPush Registration ID');
+    });
   }
 }
