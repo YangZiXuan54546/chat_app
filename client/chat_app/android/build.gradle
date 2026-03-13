@@ -42,3 +42,25 @@ subprojects {
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
+
+// 修复 jpush_flutter 插件的 AndroidManifest.xml package 属性问题
+gradle.projectsEvaluated {
+    subprojects { subproject ->
+        if (subproject.name == 'jpush_flutter') {
+            subproject.tasks.configureEach { task ->
+                if (task.name.contains('processReleaseManifest') || task.name.contains('processDebugManifest')) {
+                    task.doFirst {
+                        def manifestFile = file("${subproject.projectDir}/src/main/AndroidManifest.xml")
+                        if (manifestFile.exists()) {
+                            def content = manifestFile.text
+                            // 移除 package 属性
+                            content = content.replaceAll(/package="[^"]*"/, '')
+                            manifestFile.text = content
+                            println "Fixed jpush_flutter AndroidManifest.xml: removed package attribute"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
