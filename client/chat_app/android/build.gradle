@@ -35,6 +35,14 @@ subprojects {
                     project.android.namespace 'io.flutter.plugins.' + pluginName.replaceAll('[^a-zA-Z0-9]', '_')
                 }
             }
+            
+            // 确保所有子项目使用足够高的 compileSdkVersion
+            project.android.compileSdkVersion 35
+            
+            // 修复 jpush_flutter 需要 Android 31+ 的资源
+            if (project.name == 'jpush_flutter') {
+                project.android.compileSdkVersion 35
+            }
         }
     }
 }
