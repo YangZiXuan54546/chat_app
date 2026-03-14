@@ -125,5 +125,46 @@ target_link_libraries(media_server PRIVATE
     ${MHD_LIBRARY}
 )
 
+# 网关服务器可执行文件 (统一入口)
+add_executable(gateway_server
+    src/gateway_main.cpp
+    src/gateway_server.cpp
+    src/database.cpp
+    src/database_pool.cpp
+    src/user_manager.cpp
+    src/message_manager.cpp
+    src/group_manager.cpp
+    src/friend_manager.cpp
+    src/fcm_manager.cpp
+    src/jpush_manager.cpp
+    src/thread_pool_v2.cpp
+)
+
+target_include_directories(gateway_server PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${ASIO_INCLUDE_DIR}
+    ${MYSQL_INCLUDE_DIR}
+    ${CURL_INCLUDE_DIR}
+    ${MHD_INCLUDE_DIR}
+)
+
+target_link_libraries(gateway_server PRIVATE
+    Threads::Threads
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    ${MYSQL_LIBRARY}
+    ${CURL_LIBRARY}
+    ${MHD_LIBRARY}
+    nlohmann_json::nlohmann_json
+    qjs
+    dl
+    m
+)
+
+target_compile_definitions(gateway_server PRIVATE
+    ASIO_STANDALONE
+    ASIO_CPP14
+)
+
 # 安装
-install(TARGETS chat_server media_server DESTINATION bin)
+install(TARGETS chat_server media_server gateway_server DESTINATION bin)

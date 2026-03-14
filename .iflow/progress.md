@@ -5,10 +5,10 @@
 功能包括：私聊、群聊、好友系统、多媒体消息、MySQL数据存储
 
 ## 当前状态
-- 阶段: 功能完善阶段
+- 阶段: Gateway 架构重构阶段
 - 最后更新: 2026-03-14
-- 完成功能: 21 / 30
-- 最近完成: F031 HTTP Gateway 统一文件服务
+- 完成功能: 22 / 36
+- 最近完成: F032 Gateway 统一入口架构
 
 ## 已完成工作
 - 2026-03-08 项目初始化完成
@@ -976,17 +976,265 @@
 
 - 相关文件:
 
+
+
   - `server/include/http_gateway.hpp` - HTTP Gateway 头文件
+
+
 
   - `server/src/http_gateway.cpp` - HTTP Gateway 实现
 
+
+
   - `server/src/main.cpp` - 集成 HTTP Gateway 初始化
+
+
 
   - `server/src/server.cpp` - 添加 SO_REUSEADDR 和错误处理
 
+
+
   - `server/CMakeLists.txt` - 添加 http_gateway.cpp 和 libmicrohttpd 链接
 
+
+
   - `client/chat_app/lib/services/chat_service.dart` - 改用 HTTP 上传
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+## [2026-03-14] 完成功能 #F032 - Gateway 统一入口架构
+
+
+
+
+
+
+
+- 架构设计:
+
+
+
+  - 单端口 8888 提供所有服务
+
+
+
+  - HTTP 路由: /health, /api/upload, /media/*
+
+
+
+  - WebSocket 路由: /ws (聊天服务)
+
+
+
+
+
+
+
+- 实现内容:
+
+
+
+  - 创建 `gateway_server.hpp` 和 `gateway_server.cpp`
+
+
+
+  - 基于 libmicrohttpd 实现 HTTP 服务
+
+
+
+  - 实现路由分发机制
+
+
+
+  - 实现 WebSocket 升级检测
+
+
+
+  - 创建独立的 `gateway_server` 可执行文件
+
+
+
+
+
+
+
+- 测试结果:
+
+
+
+  - 健康检查 GET /health: ✓
+
+
+
+  - 文件上传 POST /api/upload: ✓
+
+
+
+  - WebSocket 升级检测: ✓
+
+
+
+  - WebSocket 101 响应: ⚠️ (MHD 库限制)
+
+
+
+
+
+
+
+- 待解决问题:
+
+
+
+  - MHD 对 WebSocket 101 响应支持不完整
+
+
+
+  - 需要使用 libwebsockets 或自定义 socket 处理
+
+
+
+
+
+
+
+- 相关文件:
+
+
+
+  - `server/include/gateway_server.hpp` - Gateway 头文件
+
+
+
+  - `server/src/gateway_server.cpp` - Gateway 实现
+
+
+
+  - `server/src/gateway_main.cpp` - Gateway 入口
+
+
+
+  - `server/CMakeLists.txt` - 添加 gateway_server 目标
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+## 待开发功能 (优先级: High)
+
+
+
+
+
+
+
+### F033 - WebSocket 完整支持
+
+
+
+- 问题: MHD 对 WebSocket 101 响应支持不完整
+
+
+
+- 方案选项:
+
+
+
+  1. 使用 libwebsockets 替代 MHD 处理 WebSocket
+
+
+
+  2. 自定义 socket 处理，绕过 MHD
+
+
+
+  3. 使用独立的 WebSocket 服务器 (如 Boost.Beast)
+
+
+
+
+
+
+
+### F034 - 客户端 WebSocket 连接改造
+
+
+
+- 添加 `web_socket_channel` 依赖
+
+
+
+- 创建 `WebSocketService` 替代 `NetworkService`
+
+
+
+- 适配现有消息协议
+
+
+
+
+
+
+
+### F035 - Gateway 消息路由和处理
+
+
+
+- 集成 UserManager/MessageManager 等管理器
+
+
+
+- 实现消息广播和在线状态管理
+
+
+
+- 集成推送通知
+
+
+
+
+
+
+
+### F036 - Gateway 与旧服务器兼容
+
+
+
+- 支持协议检测 (TCP vs HTTP)
+
+
+
+- 实现平滑迁移方案
 
   - `start_servers.sh` - 简化启动脚本
 
