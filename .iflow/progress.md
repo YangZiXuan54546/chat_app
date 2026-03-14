@@ -5,9 +5,10 @@
 功能包括：私聊、群聊、好友系统、多媒体消息、MySQL数据存储
 
 ## 当前状态
-- 阶段: 稳定性和性能优化
-- 最后更新: 2026-03-12
+- 阶段: 生产级稳定性优化
+- 最后更新: 2026-03-14
 - 完成功能: 18 / 18
+- 最近重构: 服务器架构重构解决假死问题
 
 ## 已完成工作
 - 2026-03-08 项目初始化完成
@@ -655,3 +656,53 @@
       - `client/chat_app/android/app/proguard-rules.pro` - 新增
       - `client/chat_app/android/app/src/main/AndroidManifest.xml` - 更新配置
     
+
+---
+
+## [2026-03-14] 服务器架构重构 - 解决假死问题
+
+- 问题描述:
+  - 服务器运行时间一长会假死
+  - 消息处理阻塞 io_context 导致无法接受新连接
+  - 数据库操作串行化导致性能瓶颈
+
+- 根因分析:
+  1. **消息处理阻塞 io_context**: `do_read_body` 中使用 `asio::post(io_context_, ...)` 处理消息，数据库操作直接在 io_context 线程中执行
+  2. **数据库连接无连接池**: 单连接 + 互斥锁，所有数据库操作串行化
+  3. **任务队列无限制**: 线程池和 io_context 队列都没有大小限制
+
+- 重构内容:
+  1. **新增 DatabasePool 数据库连接池**
+     - 支持连接复用和健康检查
+     - 最小 5 个连接，最大 20 个连接
+     - 自动扩缩容和过期连接清理
+     - RAII 风格连接管理
+
+  2. **新增 ThreadPoolV2 高性能线程池**
+     - 动态线程数 (最小 4，最大 16)
+     - 任务队列限制 (最大 1000)
+     - 支持拒绝策略 (BLOCK, ABORT, DISCARD)
+     - 优雅关闭和统计信息
+
+  3. **Session 消息处理重构**
+     - 消息处理在线程池中执行，不阻塞 io_context
+     - 数据库操作可使用连接池并发执行
+     - 响应发送通过 `asio::post` 切回 io_context 线程
+
+  4. **服务器健康监控增强**
+     - 输出线程池活跃线程数和队列大小
+     - 定期健康检查日志
+
+- 测试结果: 通过
+  - 私聊消息功能测试通过
+  - 服务器可以正常处理请求
+  - 线程池动态扩展正常
+
+- 相关文件:
+  - `server/include/database_pool.hpp` - 数据库连接池头文件
+  - `server/src/database_pool.cpp` - 数据库连接池实现
+  - `server/include/thread_pool_v2.hpp` - 高性能线程池头文件
+  - `server/src/thread_pool_v2.cpp` - 高性能线程池实现
+  - `server/include/server.hpp` - 更新服务器配置
+  - `server/src/server.cpp` - 集成线程池和健康监控
+  - `server/src/session.cpp` - 消息处理重构

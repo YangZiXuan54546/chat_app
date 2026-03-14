@@ -266,21 +266,22 @@
     {
       "id": "F015",
       "category": "technical",
-      "description": "服务器假死问题修复",
+      "description": "服务器假死问题修复 - 架构重构",
       "priority": "high",
       "steps": [
-        "使用 ThreadPool 替代 detached 线程",
-        "限制 conversations_ 最大数量",
-        "添加 LRU 清理机制",
-        "添加健康监控"
+        "创建 DatabasePool 数据库连接池",
+        "创建 ThreadPoolV2 高性能线程池",
+        "重构 Session 消息处理到线程池",
+        "添加服务器健康监控"
       ],
       "acceptanceCriteria": [
-        "线程数稳定在预期范围",
-        "内存使用稳定",
+        "消息处理不阻塞 io_context",
+        "数据库操作可并发执行",
+        "线程数和内存使用稳定",
         "服务器长时间运行不假死"
       ],
       "status": "completed",
-      "completedAt": "2026-03-12T10:00:00Z"
+      "completedAt": "2026-03-14T12:00:00Z"
     },
     {
       "id": "F016",
