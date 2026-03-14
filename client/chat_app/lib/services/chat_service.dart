@@ -1869,4 +1869,9 @@ class ChatService extends ChangeNotifier {
   Future<List<Message>> getImageMessages({int limit = 100, int beforeTime = 0}) async {
     return await _messageDb.getImageMessages(limit: limit, beforeTime: beforeTime);
   }
+  
+  /// 获取文件消息（用于文件管理功能）
+  Future<List<Message>> getFileMessages({int limit = 100, int beforeTime = 0}) async {
+    return await _messageDb.getFileMessages(limit: limit, beforeTime: beforeTime);
+  }
 }

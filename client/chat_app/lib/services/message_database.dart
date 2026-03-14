@@ -242,4 +242,37 @@ class MessageDatabase {
     
     return results.take(limit).toList();
   }
+  
+  /// 获取所有文件消息（用于文件管理功能）
+  Future<List<Message>> getFileMessages({int limit = 100, int beforeTime = 0}) async {
+    final results = <Message>[];
+    
+    for (final key in _messagesBox?.keys ?? []) {
+      final jsonString = _messagesBox?.get(key);
+      if (jsonString != null) {
+        try {
+          final jsonList = jsonDecode(jsonString) as List<dynamic>;
+          for (final json in jsonList) {
+            final message = Message.fromJson(jsonDecode(json as String) as Map<String, dynamic>);
+            // 筛选文件类型消息 (mediaType = 4)
+            if (message.mediaType == 4 && message.mediaUrl.isNotEmpty) {
+              results.add(message);
+            }
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+    }
+    
+    // 按时间倒序排序
+    results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    
+    // 分页处理
+    if (beforeTime > 0) {
+      return results.where((m) => m.createdAt < beforeTime).take(limit).toList();
+    }
+    
+    return results.take(limit).toList();
+  }
 }
