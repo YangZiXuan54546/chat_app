@@ -105,6 +105,11 @@ private:
     // FCM Token 注册
     void handle_fcm_token_register(uint32_t sequence, const json& body);
     
+    // 消息收藏
+    void handle_favorite_add(uint32_t sequence, const json& body);
+    void handle_favorite_remove(uint32_t sequence, const json& body);
+    void handle_favorite_list(uint32_t sequence, const json& body);
+    
 private:
     asio::io_context& io_context_;
     Socket socket_;

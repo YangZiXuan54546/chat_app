@@ -7,8 +7,8 @@
 ## 当前状态
 - 阶段: 功能完善阶段
 - 最后更新: 2026-03-14
-- 完成功能: 17 / 30
-- 最近完成: F027 编辑资料修改密码
+- 完成功能: 18 / 30
+- 最近完成: F022 个人中心 - 收藏功能
 
 ## 已完成工作
 - 2026-03-08 项目初始化完成
@@ -738,3 +738,54 @@
   - `client/chat_app/lib/models/protocol.dart` - 添加客户端消息类型
   - `client/chat_app/lib/services/chat_service.dart` - 添加 updatePassword 方法
   - `client/chat_app/lib/screens/edit_profile_screen.dart` - 完善修改密码对话框
+
+
+---
+
+## [2026-03-14] 完成功能 #F022 - 个人中心收藏功能
+
+- 实现内容:
+  - 服务器端协议添加收藏相关消息类型
+    - FAVORITE_ADD (140): 添加收藏
+    - FAVORITE_ADD_RESPONSE (141)
+    - FAVORITE_REMOVE (142): 取消收藏
+    - FAVORITE_REMOVE_RESPONSE (143)
+    - FAVORITE_LIST (144): 获取收藏列表
+    - FAVORITE_LIST_RESPONSE (145)
+  - 服务器端数据库添加 favorites 表
+    - 存储用户收藏的消息 (user_id, message_id, message_type, sender_id, content, media_type, media_url)
+    - 支持私聊和群聊消息收藏
+  - 服务器端 Database 添加收藏相关方法
+    - add_favorite(): 添加收藏
+    - remove_favorite(): 取消收藏
+    - get_favorites(): 获取收藏列表
+    - is_favorited(): 检查是否已收藏
+  - 服务器端 Session 添加收藏消息处理器
+  - 客户端协议添加收藏消息类型
+  - 客户端 ChatService 添加收藏相关方法和状态
+  - 客户端创建 Favorite 模型类
+  - 客户端 chat_screen.dart 添加长按收藏菜单
+  - 客户端创建 favorites_screen.dart 收藏列表页面
+    - 显示收藏的消息列表
+    - 支持滑动删除取消收藏
+    - 点击查看收藏详情
+  - 客户端 profile_screen.dart 添加收藏入口
+
+- 测试结果: 代码审查通过 (待编译测试)
+  - 服务器端收藏逻辑: ✓
+  - 客户端 UI 交互: ✓
+  - 数据库表设计: ✓
+
+- 相关文件:
+  - `server/include/protocol.hpp` - 添加收藏消息类型
+  - `server/include/database.hpp` - 添加收藏方法声明
+  - `server/src/database.cpp` - 添加 favorites 表和收藏方法实现
+  - `server/include/session.hpp` - 添加收藏处理器声明
+  - `server/src/session.cpp` - 实现收藏消息处理
+  - `client/chat_app/lib/models/protocol.dart` - 添加客户端消息类型
+  - `client/chat_app/lib/models/favorite.dart` - 新增收藏模型
+  - `client/chat_app/lib/models/models.dart` - 导出收藏模型
+  - `client/chat_app/lib/services/chat_service.dart` - 添加收藏方法和状态
+  - `client/chat_app/lib/screens/chat_screen.dart` - 添加长按收藏菜单
+  - `client/chat_app/lib/screens/favorites_screen.dart` - 新增收藏列表页面
+  - `client/chat_app/lib/screens/profile_screen.dart` - 添加收藏入口

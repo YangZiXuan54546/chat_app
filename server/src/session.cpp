@@ -296,6 +296,19 @@ void Session::handle_message(MessageType type, uint32_t sequence, const json& bo
             handle_fcm_token_register(sequence, body);
             break;
             
+        // 消息收藏
+        case MessageType::FAVORITE_ADD:
+            handle_favorite_add(sequence, body);
+            break;
+            
+        case MessageType::FAVORITE_REMOVE:
+            handle_favorite_remove(sequence, body);
+            break;
+            
+        case MessageType::FAVORITE_LIST:
+            handle_favorite_list(sequence, body);
+            break;
+            
         default:
             send(Protocol::create_error(sequence, 400, "Unknown message type"));
             break;
@@ -1544,6 +1557,94 @@ void Session::handle_fcm_token_register(uint32_t sequence, const json& body) {
         send(Protocol::create_response(MessageType::FCM_TOKEN_REGISTER_RESPONSE, sequence, response));
     } else {
         send(Protocol::create_error(sequence, 500, "Failed to register token"));
+    }
+}
+
+// ==================== 消息收藏处理器 ====================
+
+void Session::handle_favorite_add(uint32_t sequence, const json& body) {
+    if (!authenticated_) {
+        send(Protocol::create_error(sequence, 401, "Not authenticated"));
+        return;
+    }
+    
+    uint64_t message_id = body.value("message_id", 0ULL);
+    std::string message_type = body.value("message_type", "");
+    uint64_t sender_id = body.value("sender_id", 0ULL);
+    std::string content = body.value("content", "");
+    int media_type_int = body.value("media_type", 0);
+    std::string media_url = body.value("media_url", "");
+    
+    if (message_id == 0 || message_type.empty()) {
+        send(Protocol::create_error(sequence, 400, "message_id and message_type are required"));
+        return;
+    }
+    
+    if (message_type != "private" && message_type != "group") {
+        send(Protocol::create_error(sequence, 400, "message_type must be 'private' or 'group'"));
+        return;
+    }
+    
+    MediaType media_type = static_cast<MediaType>(media_type_int);
+    
+    if (database_->add_favorite(user_id_, message_id, message_type, sender_id, 
+                                 content, media_type, media_url)) {
+        json response = {
+            {"success", true},
+            {"message_id", message_id},
+            {"message_type", message_type}
+        };
+        send(Protocol::create_response(MessageType::FAVORITE_ADD_RESPONSE, sequence, response));
+    } else {
+        send(Protocol::create_error(sequence, 500, "Failed to add favorite"));
+    }
+}
+
+void Session::handle_favorite_remove(uint32_t sequence, const json& body) {
+    if (!authenticated_) {
+        send(Protocol::create_error(sequence, 401, "Not authenticated"));
+        return;
+    }
+    
+    uint64_t message_id = body.value("message_id", 0ULL);
+    std::string message_type = body.value("message_type", "");
+    
+    if (message_id == 0 || message_type.empty()) {
+        send(Protocol::create_error(sequence, 400, "message_id and message_type are required"));
+        return;
+    }
+    
+    if (database_->remove_favorite(user_id_, message_id, message_type)) {
+        json response = {
+            {"success", true},
+            {"message_id", message_id},
+            {"message_type", message_type}
+        };
+        send(Protocol::create_response(MessageType::FAVORITE_REMOVE_RESPONSE, sequence, response));
+    } else {
+        send(Protocol::create_error(sequence, 500, "Failed to remove favorite"));
+    }
+}
+
+void Session::handle_favorite_list(uint32_t sequence, const json& body) {
+    if (!authenticated_) {
+        send(Protocol::create_error(sequence, 401, "Not authenticated"));
+        return;
+    }
+    
+    int limit = body.value("limit", 50);
+    int offset = body.value("offset", 0);
+    
+    std::vector<json> favorites;
+    
+    if (database_->get_favorites(user_id_, limit, offset, favorites)) {
+        json response = {
+            {"favorites", favorites},
+            {"count", favorites.size()}
+        };
+        send(Protocol::create_response(MessageType::FAVORITE_LIST_RESPONSE, sequence, response));
+    } else {
+        send(Protocol::create_error(sequence, 500, "Failed to get favorites"));
     }
 }
 

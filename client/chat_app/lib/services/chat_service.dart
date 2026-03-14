@@ -290,6 +290,15 @@ class ChatService extends ChangeNotifier {
       case MessageType.passwordUpdateResponse:
         _handlePasswordUpdateResponse(body);
         break;
+      case MessageType.favoriteAddResponse:
+        _handleFavoriteAddResponse(body);
+        break;
+      case MessageType.favoriteRemoveResponse:
+        _handleFavoriteRemoveResponse(body);
+        break;
+      case MessageType.favoriteListResponse:
+        _handleFavoriteListResponse(body);
+        break;
       default:
         break;
     }
@@ -1863,5 +1872,140 @@ class ChatService extends ChangeNotifier {
       'fcm_token': registrationId,
       'token_type': 'jpush',
     });
+  }
+  
+  // ==================== 消息收藏相关 ====================
+  
+  final List<Favorite> _favorites = [];
+  bool _favoriteAddSuccess = false;
+  String? _favoriteError;
+  
+  List<Favorite> get favorites => _favorites;
+  bool get favoriteAddSuccess => _favoriteAddSuccess;
+  String? get favoriteError => _favoriteError;
+  
+  /// 添加收藏
+  Future<bool> addFavorite({
+    required int messageId,
+    required String messageType,
+    required int senderId,
+    required String content,
+    int mediaType = 0,
+    String mediaUrl = '',
+  }) async {
+    if (!_isAuthenticated) {
+      _favoriteError = 'Not authenticated';
+      notifyListeners();
+      return false;
+    }
+    
+    _favoriteAddSuccess = false;
+    _favoriteError = null;
+    
+    _network.send(MessageType.favoriteAdd, {
+      'message_id': messageId,
+      'message_type': messageType,
+      'sender_id': senderId,
+      'content': content,
+      'media_type': mediaType,
+      'media_url': mediaUrl,
+    });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_favoriteAddSuccess || _favoriteError != null) {
+        return _favoriteAddSuccess;
+      }
+    }
+    
+    _favoriteError = 'Request timeout';
+    return false;
+  }
+  
+  /// 取消收藏
+  Future<bool> removeFavorite(int messageId, String messageType) async {
+    if (!_isAuthenticated) {
+      _favoriteError = 'Not authenticated';
+      notifyListeners();
+      return false;
+    }
+    
+    _favoriteAddSuccess = false;
+    _favoriteError = null;
+    
+    _network.send(MessageType.favoriteRemove, {
+      'message_id': messageId,
+      'message_type': messageType,
+    });
+    
+    // 等待响应（最多5秒）
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_favoriteAddSuccess || _favoriteError != null) {
+        return _favoriteAddSuccess;
+      }
+    }
+    
+    _favoriteError = 'Request timeout';
+    return false;
+  }
+  
+  /// 获取收藏列表
+  void loadFavorites({int limit = 50, int offset = 0}) {
+    if (!_isAuthenticated) return;
+    
+    _network.send(MessageType.favoriteList, {
+      'limit': limit,
+      'offset': offset,
+    });
+  }
+  
+  /// 处理添加收藏响应
+  void _handleFavoriteAddResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      _favoriteAddSuccess = true;
+      _favoriteError = null;
+      // 刷新收藏列表
+      loadFavorites();
+    } else {
+      _favoriteAddSuccess = false;
+      _favoriteError = body['message'] as String? ?? 'Failed to add favorite';
+    }
+    notifyListeners();
+  }
+  
+  /// 处理取消收藏响应
+  void _handleFavoriteRemoveResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      _favoriteAddSuccess = true;
+      _favoriteError = null;
+      // 刷新收藏列表
+      loadFavorites();
+    } else {
+      _favoriteAddSuccess = false;
+      _favoriteError = body['message'] as String? ?? 'Failed to remove favorite';
+    }
+    notifyListeners();
+  }
+  
+  /// 处理收藏列表响应
+  void _handleFavoriteListResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final favoritesJson = data['favorites'] as List<dynamic>? ?? [];
+        _favorites.clear();
+        
+        for (final item in favoritesJson) {
+          final fav = Favorite.fromJson(item as Map<String, dynamic>);
+          _favorites.add(fav);
+        }
+      }
+    }
+    notifyListeners();
   }
 }

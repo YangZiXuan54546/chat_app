@@ -109,6 +109,15 @@ public:
     std::string get_fcm_token(uint64_t user_id);
     bool remove_fcm_token(uint64_t user_id);
     
+    // 消息收藏相关
+    bool add_favorite(uint64_t user_id, uint64_t message_id, const std::string& message_type,
+                      uint64_t sender_id, const std::string& content, 
+                      MediaType media_type, const std::string& media_url);
+    bool remove_favorite(uint64_t user_id, uint64_t message_id, const std::string& message_type);
+    bool get_favorites(uint64_t user_id, int limit, int offset, 
+                       std::vector<json>& favorites);
+    bool is_favorited(uint64_t user_id, uint64_t message_id, const std::string& message_type);
+    
 private:
     MYSQL* connection_;
     std::mutex mutex_;

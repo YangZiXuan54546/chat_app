@@ -115,6 +115,14 @@ enum class MessageType : uint8_t {
     FCM_TOKEN_REGISTER = 130,
     FCM_TOKEN_REGISTER_RESPONSE = 131,
     
+    // 消息收藏
+    FAVORITE_ADD = 140,
+    FAVORITE_ADD_RESPONSE = 141,
+    FAVORITE_REMOVE = 142,
+    FAVORITE_REMOVE_RESPONSE = 143,
+    FAVORITE_LIST = 144,
+    FAVORITE_LIST_RESPONSE = 145,
+    
     // 错误
     ERROR = 255
 };
