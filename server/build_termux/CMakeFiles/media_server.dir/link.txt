@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/clang++ -O3 -DNDEBUG -Xlinker --dependency-file=CMakeFiles/media_server.dir/link.d CMakeFiles/media_server.dir/src/media_server.cpp.o -o media_server  /data/data/com.termux/files/usr/lib/libmicrohttpd.so

@@ -5,7 +5,12 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+// 支持 MariaDB (Termux/Android) 和 MySQL
+#if defined(__ANDROID__) || defined(__TERMUX__)
+#include <mariadb/mysql.h>
+#else
 #include <mysql/mysql.h>
+#endif
 #include "protocol.hpp"
 
 namespace chat {

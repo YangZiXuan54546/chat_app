@@ -1,0 +1,8 @@
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/chat_server.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/media_server.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/edit_cache.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/rebuild_cache.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/list_install_components.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/install.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/install/local.dir
+/data/data/com.termux/files/home/program/chat_app/server/build_termux/CMakeFiles/install/strip.dir

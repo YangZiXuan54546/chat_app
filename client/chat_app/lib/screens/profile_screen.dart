@@ -5,9 +5,6 @@ import '../services/storage_service.dart';
 import 'login_screen.dart';
 import 'edit_profile_screen.dart';
 import 'settings_screen.dart';
-import 'favorites_screen.dart';
-import 'gallery_screen.dart';
-import 'file_manager_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -103,31 +100,19 @@ class ProfileScreen extends StatelessWidget {
                     context,
                     icon: Icons.star_outline,
                     title: '收藏',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                      );
-                    },
+                    onTap: () {},
                   ),
                   _buildListItem(
                     context,
                     icon: Icons.photo_library_outlined,
                     title: '相册',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const GalleryScreen()),
-                      );
-                    },
+                    onTap: () {},
                   ),
                   _buildListItem(
                     context,
                     icon: Icons.folder_outlined,
                     title: '文件',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const FileManagerScreen()),
-                      );
-                    },
+                    onTap: () {},
                   ),
                 ],
               ),

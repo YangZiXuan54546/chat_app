@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/data/data/com.termux/files/home/program/chat_app/server/build_termux/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

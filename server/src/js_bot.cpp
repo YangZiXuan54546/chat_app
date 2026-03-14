@@ -116,7 +116,7 @@ JS_FUNC(send_group_message) {
     if (!content) return JS_NewBool(ctx, false);
     
     std::vector<uint64_t> mentioned;
-    if (argc >= 3 && JS_IsArray(ctx, argv[2])) {
+    if (argc >= 3 && JS_IsArray(argv[2])) {
         JSValue length_val = JS_GetPropertyStr(ctx, argv[2], "length");
         uint32_t length;
         JS_ToUint32(ctx, &length, length_val);

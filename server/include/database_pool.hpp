@@ -1,7 +1,14 @@
 #ifndef DATABASE_POOL_HPP
 #define DATABASE_POOL_HPP
 
+// 支持 MariaDB (Termux/Android) 和 MySQL
+#if defined(__ANDROID__) || defined(__TERMUX__)
+#include <mariadb/mysql.h>
+#include <mariadb/errmsg.h>
+#else
 #include <mysql/mysql.h>
+#include <mysql/errmsg.h>
+#endif
 #include <string>
 #include <queue>
 #include <memory>
