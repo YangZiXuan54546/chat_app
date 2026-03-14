@@ -128,27 +128,5 @@
             android:name="JPUSH_APPKEY"
             android:value="16d9f5ae7a467d54f3d9f775"
             tools:replace="android:value"/>
-        
-        <!-- JPush Service - 用于保持推送通道稳定 (JCore 2.0.0+) -->
-        <service
-            android:name=".JPushService"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":pushcore">
-            <intent-filter>
-                <action android:name="cn.jiguang.user.service.action" />
-            </intent-filter>
-        </service>
-        
-        <!-- JPush Receiver - 用于接收 alias/tag 回调 (JPush 3.0.7+) -->
-        <receiver
-            android:name=".JPushReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="cn.jpush.android.intent.RECEIVER_MESSAGE" />
-                <category android:name="${applicationId}" />
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>
