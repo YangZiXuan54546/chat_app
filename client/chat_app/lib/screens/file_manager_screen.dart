@@ -410,7 +410,7 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(_formatFileSize(file.mediaSize), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                        Text(_formatFileSize(null), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
                         const SizedBox(width: 8),
                         Text('·', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         const SizedBox(width: 8),
