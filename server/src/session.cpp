@@ -672,10 +672,10 @@ void Session::handle_private_message(uint32_t sequence, const json& body) {
             // 同时发送 FCM (国外)
             auto fcm_manager = server_->get_fcm_manager();
             if (fcm_manager) {
-                json data = {
+                std::map<std::string, std::string> data = {
                     {"type", "private_message"},
-                    {"sender_id", user_id_},
-                    {"message_id", message.message_id}
+                    {"sender_id", std::to_string(user_id_)},
+                    {"message_id", std::to_string(message.message_id)}
                 };
                 fcm_manager->send_notification(receiver_id, sender_name, notification_body, data);
                 std::cout << "FCM notification sent to offline user: " << receiver_id << std::endl;
@@ -1043,11 +1043,11 @@ void Session::handle_group_message(uint32_t sequence, const json& body) {
                     
                     // 同时发送 FCM (国外)
                     if (fcm_manager) {
-                        json data = {
+                        std::map<std::string, std::string> data = {
                             {"type", "group_message"},
-                            {"group_id", group_id},
-                            {"sender_id", user_id_},
-                            {"message_id", message.message_id}
+                            {"group_id", std::to_string(group_id)},
+                            {"sender_id", std::to_string(user_id_)},
+                            {"message_id", std::to_string(message.message_id)}
                         };
                         fcm_manager->send_notification(member_id, group_name, notification_body, data);
                         std::cout << "FCM notification sent to offline/inactive group member: " << member_id << std::endl;
