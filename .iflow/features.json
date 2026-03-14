@@ -656,33 +656,15 @@
         "离线用户收到推送通知"
       ],
       "status": "pending"
-    },
-    {
-      "id": "F036",
-      "category": "infrastructure",
-      "description": "Gateway 与旧服务器兼容",
-      "priority": "high",
-      "steps": [
-        "支持 TCP 协议检测 (首字节判断)",
-        "TCP 连接路由到旧聊天服务",
-        "HTTP 请求路由到 Gateway 处理",
-        "实现平滑迁移方案"
-      ],
-      "acceptanceCriteria": [
-        "现有 TCP 客户端无需修改可连接",
-        "新 WebSocket 客户端可连接",
-        "HTTP 上传下载正常"
-      ],
-      "status": "pending"
     }
   ],
   "statistics": {
-    "total": 36,
+    "total": 35,
     "completed": 22,
     "inProgress": 0,
-    "pending": 14,
+    "pending": 13,
     "byPriority": {
-      "high": 19,
+      "high": 18,
       "medium": 9,
       "low": 8
     }
