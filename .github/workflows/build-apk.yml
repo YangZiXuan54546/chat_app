@@ -56,7 +56,8 @@ jobs:
     
     - name: Build APK
       working-directory: client/chat_app
-      run: flutter build apk --release
+      run: flutter build apk --release --verbose
+      continue-on-error: false
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
