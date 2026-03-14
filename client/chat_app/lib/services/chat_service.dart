@@ -290,6 +290,15 @@ class ChatService extends ChangeNotifier {
       case MessageType.passwordUpdateResponse:
         _handlePasswordUpdateResponse(body);
         break;
+      case MessageType.favoriteAddResponse:
+        _handleFavoriteAddResponse(body);
+        break;
+      case MessageType.favoriteRemoveResponse:
+        _handleFavoriteRemoveResponse(body);
+        break;
+      case MessageType.favoriteListResponse:
+        _handleFavoriteListResponse(body);
+        break;
       default:
         break;
     }
@@ -1873,5 +1882,106 @@ class ChatService extends ChangeNotifier {
   /// 获取文件消息（用于文件管理功能）
   Future<List<Message>> getFileMessages({int limit = 100, int beforeTime = 0}) async {
     return await _messageDb.getFileMessages(limit: limit, beforeTime: beforeTime);
+  }
+  
+  // 收藏相关状态
+  final List<Favorite> _favorites = [];
+  bool _favoriteAddSuccess = false;
+  String? _favoriteError;
+  
+  List<Favorite> get favorites => _favorites;
+  bool get favoriteAddSuccess => _favoriteAddSuccess;
+  String? get favoriteError => _favoriteError;
+  
+  /// 添加收藏
+  Future<bool> addFavorite({
+    required int messageId,
+    required String messageType,
+    required int senderId,
+    required String content,
+    required int mediaType,
+    required String mediaUrl,
+  }) async {
+    _favoriteAddSuccess = false;
+    _favoriteError = null;
+    
+    _network.send(MessageType.favoriteAdd, {
+      'message_id': messageId,
+      'message_type': messageType,
+      'sender_id': senderId,
+      'content': content,
+      'media_type': mediaType,
+      'media_url': mediaUrl,
+    });
+    
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_favoriteAddSuccess || _favoriteError != null) {
+        return _favoriteAddSuccess;
+      }
+    }
+    
+    _favoriteError = '请求超时';
+    return false;
+  }
+  
+  /// 移除收藏
+  Future<bool> removeFavorite(int messageId) async {
+    _favoriteError = null;
+    
+    _network.send(MessageType.favoriteRemove, {
+      'message_id': messageId,
+    });
+    
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_favoriteError != null || !_favorites.any((f) => f.messageId == messageId)) {
+        return _favoriteError == null;
+      }
+    }
+    
+    return false;
+  }
+  
+  /// 获取收藏列表
+  void loadFavorites() {
+    _network.send(MessageType.favoriteList, {});
+  }
+  
+  void _handleFavoriteAddResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      _favoriteAddSuccess = true;
+      loadFavorites();
+    } else {
+      _favoriteAddSuccess = false;
+      _favoriteError = body['message'] as String? ?? '收藏失败';
+    }
+    notifyListeners();
+  }
+  
+  void _handleFavoriteRemoveResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final messageId = body['message_id'] as int?;
+      if (messageId != null) {
+        _favorites.removeWhere((f) => f.messageId == messageId);
+      }
+    } else {
+      _favoriteError = body['message'] as String? ?? '取消收藏失败';
+    }
+    notifyListeners();
+  }
+  
+  void _handleFavoriteListResponse(Map<String, dynamic> body) {
+    final code = body['code'] ?? -1;
+    if (code == 0) {
+      final list = body['favorites'] as List<dynamic>? ?? [];
+      _favorites.clear();
+      for (final item in list) {
+        _favorites.add(Favorite.fromJson(item as Map<String, dynamic>));
+      }
+    }
+    notifyListeners();
   }
 }

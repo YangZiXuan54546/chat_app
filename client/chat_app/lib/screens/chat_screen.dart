@@ -650,6 +650,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
               ),
             ListTile(
+              leading: const Icon(Icons.star_outline),
+              title: const Text('收藏'),
+              onTap: () {
+                Navigator.pop(context);
+                _addToFavorite(message);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('复制'),
               onTap: () {
@@ -666,6 +674,25 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+  
+  /// 添加到收藏
+  Future<void> _addToFavorite(Message message) async {
+    final chatService = context.read<ChatService>();
+    final success = await chatService.addFavorite(
+      messageId: message.messageId,
+      messageType: widget.isGroup ? 'group' : 'private',
+      senderId: message.senderId,
+      content: message.content,
+      mediaType: message.mediaType,
+      mediaUrl: message.mediaUrl,
+    );
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? '已收藏' : (chatService.favoriteError ?? '收藏失败'))),
+      );
+    }
   }
   
   /// 撤回消息

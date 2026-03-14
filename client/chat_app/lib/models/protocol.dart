@@ -105,6 +105,14 @@ enum MessageType {
   fcmTokenRegister(130),
   fcmTokenRegisterResponse(131),
 
+  // 消息收藏
+  favoriteAdd(140),
+  favoriteAddResponse(141),
+  favoriteRemove(142),
+  favoriteRemoveResponse(143),
+  favoriteList(144),
+  favoriteListResponse(145),
+
   // 错误
   error(255);
 
