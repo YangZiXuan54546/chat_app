@@ -20,6 +20,10 @@ class WsMessageType {
   static const String userSearchResponse = 'userSearchResponse';
   static const String passwordUpdate = 'passwordUpdate';
   static const String passwordUpdateResponse = 'passwordUpdateResponse';
+  static const String userInfo = 'userInfo';
+  static const String userInfoResponse = 'userInfoResponse';
+  static const String userUpdate = 'userUpdate';
+  static const String userUpdateResponse = 'userUpdateResponse';
   
   // 好友相关
   static const String friendRequest = 'friendRequest';
@@ -36,6 +40,8 @@ class WsMessageType {
   static const String friendListResponse = 'friendListResponse';
   static const String friendRequests = 'friendRequests';
   static const String friendRequestsResponse = 'friendRequestsResponse';
+  static const String friendRemark = 'friendRemark';
+  static const String friendRemarkResponse = 'friendRemarkResponse';
   
   // 私聊消息
   static const String privateMessage = 'privateMessage';
@@ -62,6 +68,8 @@ class WsMessageType {
   static const String groupListResponse = 'groupListResponse';
   static const String groupMembers = 'groupMembers';
   static const String groupMembersResponse = 'groupMembersResponse';
+  static const String groupJoin = 'groupJoin';
+  static const String groupJoinResponse = 'groupJoinResponse';
   
   // 群聊消息
   static const String groupMessage = 'groupMessage';
