@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/chat_service.dart';
+import '../services/storage_service.dart';
 import '../models/models.dart';
 
 /// 收藏消息列表页面
