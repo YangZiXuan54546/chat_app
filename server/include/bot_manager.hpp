@@ -6,9 +6,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <asio.hpp>
 #include "deepseek_client.hpp"
 #include "database.hpp"
-#include "server.hpp"
 
 namespace chat {
 

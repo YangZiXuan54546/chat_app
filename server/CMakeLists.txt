@@ -125,16 +125,20 @@ target_link_libraries(media_server PRIVATE
     ${MHD_LIBRARY}
 )
 
-# 网关服务器可执行文件 (统一入口)
+# 网关服务器可执行文件 (统一入口 - WebSocket + HTTP)
 add_executable(gateway_server
     src/gateway_main.cpp
-    src/gateway_server.cpp
+    src/websocket_server.cpp
+    src/http_gateway.cpp
     src/database.cpp
     src/database_pool.cpp
     src/user_manager.cpp
     src/message_manager.cpp
     src/group_manager.cpp
     src/friend_manager.cpp
+    src/deepseek_client.cpp
+    src/bot_manager.cpp
+    src/js_bot.cpp
     src/fcm_manager.cpp
     src/jpush_manager.cpp
     src/thread_pool_v2.cpp
