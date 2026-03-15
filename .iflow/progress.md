@@ -1150,7 +1150,6 @@
 
 
 
-## 待开发功能 (优先级: High)
 
 
 
@@ -1158,27 +1157,22 @@
 
 
 
-### F033 - WebSocket 完整支持
 
 
 
-- 问题: MHD 对 WebSocket 101 响应支持不完整
 
 
 
-- 方案选项:
 
 
 
-  1. 使用 libwebsockets 替代 MHD 处理 WebSocket
+## [2026-03-15] GitHub Actions 构建修复
 
 
 
-  2. 自定义 socket 处理，绕过 MHD
 
 
 
-  3. 使用独立的 WebSocket 服务器 (如 Boost.Beast)
 
 
 
@@ -1186,35 +1180,31 @@
 
 
 
-### F034 - 客户端 WebSocket 连接改造
 
 
 
-- 添加 `web_socket_channel` 依赖
 
 
 
-- 创建 `WebSocketService` 替代 `NetworkService`
 
 
 
-- 适配现有消息协议
 
+- 问题描述:
 
 
 
 
 
 
-### F035 - Gateway 消息路由和处理
 
 
 
 
 
+  - gradle.properties 包含 Termux 特定路径，导致 GitHub Actions 构建失败
 
 
-- 集成 UserManager/MessageManager 等管理器
 
 
 
@@ -1222,16 +1212,368 @@
 
 
 
-- 实现消息广播和在线状态管理
 
 
+  - Java 版本过低 (1.8) 不兼容新版 Gradle 和依赖
 
 
 
 
 
-- 集成推送通知
 
-  - `start_servers.sh` - 简化启动脚本
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+- 修复内容:
+
+
+
+
+
+
+
+
+
+
+
+  1. **移除 Termux 特定配置**
+
+
+
+
+
+
+
+
+
+
+
+     - 删除 android.aapt2FromMavenOverride Termux 路径
+
+
+
+
+
+
+
+
+
+
+
+     - 删除 android.overrideNativeBuildTools Termux 路径
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  2. **升级构建配置**
+
+
+
+
+
+
+
+
+
+
+
+     - Java 版本: 1.8 → 17
+
+
+
+
+
+
+
+
+
+
+
+     - Gradle 版本: 8.1.0 → 8.2.2
+
+
+
+
+
+
+
+
+
+
+
+     - file_picker: 6.1.1 → 8.0.0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  3. **添加兼容性支持**
+
+
+
+
+
+
+
+
+
+
+
+     - coreLibraryDesugaring 支持旧版 API
+
+
+
+
+
+
+
+
+
+
+
+     - Gradle wrapper 文件
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  4. **更新 .gitignore**
+
+
+
+
+
+
+
+
+
+
+
+     - 排除 .metadata 自动生成文件
+
+
+
+
+
+
+
+
+
+
+
+     - 排除 GeneratedPluginRegistrant.java 自动生成文件
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+- 相关文件:
+
+
+
+
+
+
+
+
+
+
+
+  - `client/chat_app/android/gradle.properties` - 移除 Termux 配置
+
+
+
+
+
+
+
+
+
+
+
+  - `client/chat_app/android/app/build.gradle` - Java 17 和 desugaring
+
+
+
+
+
+
+
+
+
+
+
+  - `client/chat_app/android/build.gradle` - Gradle 8.2.2
+
+
+
+
+
+
+
+
+
+
+
+  - `client/chat_app/pubspec.yaml` - file_picker 8.0.0
+
+
+
+
+
+
+
+
+
+
+
+  - `.gitignore` - 排除自动生成文件
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+- 构建状态:
+
+
+
+
+
+
+
+
+
+
+
+  - 代码已推送到 GitHub: commit 3f14173
+
+
+
+
+
+
+
+
+
+
+
+  - GitHub Actions 已触发构建
+
+
+
+
+
+
+
+
+
+
+
+  - 查看构建状态: https://github.com/YangZiXuan54546/chat_app/actions
 
 
