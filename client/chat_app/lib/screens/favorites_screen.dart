@@ -106,10 +106,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   String _fixMediaUrl(String url) {
-    if (url.contains("localhost")) {
-      return url.replaceFirst(RegExp(r"http://localhost:\d+"), "http://127.0.0.1:8889");
-    }
-    return url;
+    return StorageService().fixMediaUrl(url);
   }
 
   String _formatTime(int timestamp) {

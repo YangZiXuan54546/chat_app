@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import '../services/chat_service.dart';
+import '../services/storage_service.dart';
 import '../models/models.dart';
 
 /// 相册页面 - 显示所有图片消息
@@ -230,10 +231,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
   
   String _fixMediaUrl(String url) {
-    if (url.contains("localhost")) {
-      return url.replaceFirst(RegExp(r"http://localhost:\d+"), "http://127.0.0.1:8889");
-    }
-    return url;
+    return StorageService().fixMediaUrl(url);
   }
   
   String _getSourceText(Message message) {
@@ -280,10 +278,7 @@ class _GalleryViewScreenState extends State<_GalleryViewScreen> {
   }
   
   String _fixMediaUrl(String url) {
-    if (url.contains("localhost")) {
-      return url.replaceFirst(RegExp(r"http://localhost:\d+"), "http://127.0.0.1:8889");
-    }
-    return url;
+    return StorageService().fixMediaUrl(url);
   }
   
   @override

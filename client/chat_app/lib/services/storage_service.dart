@@ -57,6 +57,17 @@ class StorageService {
 
   /// 获取服务器端口
   int get serverPort => _prefs?.getInt(_keyServerPort) ?? 8888;
+  
+  /// 获取媒体服务器地址 (HTTP端口固定为8889)
+  String get mediaServerHost => '$serverHost:8889';
+  
+  /// 替换URL中的localhost为实际服务器地址
+  String fixMediaUrl(String url) {
+    if (url.contains('localhost')) {
+      return url.replaceFirst(RegExp(r'http://localhost:\d+'), 'http://$mediaServerHost');
+    }
+    return url;
+  }
 
   /// 保存当前用户
   Future<void> saveCurrentUser(User user) async {

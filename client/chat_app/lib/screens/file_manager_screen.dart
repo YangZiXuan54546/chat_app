@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../services/chat_service.dart';
+import '../services/storage_service.dart';
 import '../models/models.dart';
 
 /// 文件类型枚举
@@ -170,10 +171,7 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
   }
   
   String _fixMediaUrl(String url) {
-    if (url.contains("localhost")) {
-      return url.replaceFirst(RegExp(r"http://localhost:\d+"), "http://127.0.0.1:8889");
-    }
-    return url;
+    return StorageService().fixMediaUrl(url);
   }
   
   Future<void> _downloadFile(Message message) async {

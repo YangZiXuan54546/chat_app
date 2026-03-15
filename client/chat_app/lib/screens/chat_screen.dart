@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../services/chat_service.dart';
+import '../services/storage_service.dart';
 import '../models/models.dart';
 import 'group_management_screen.dart';
 
@@ -795,11 +796,8 @@ class _ChatScreenState extends State<ChatScreen> {
       return const Icon(Icons.broken_image, size: 100);
     }
     
-    // 替换localhost为实际地址
-    String fixedUrl = url;
-    if (url.contains('localhost')) {
-      fixedUrl = url.replaceFirst(RegExp(r'http://localhost:\d+'), 'http://127.0.0.1:8889');
-    }
+    // 使用 StorageService 统一处理 URL
+    final fixedUrl = StorageService().fixMediaUrl(url);
     
     // 检查是否是网络URL
     if (fixedUrl.startsWith('http://') || fixedUrl.startsWith('https://')) {
@@ -1223,11 +1221,8 @@ class _ImagePreviewScreen extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    // 替换localhost为实际地址
-    String fixedUrl = url;
-    if (url.contains('localhost')) {
-      fixedUrl = url.replaceFirst(RegExp(r'http://localhost:\d+'), 'http://127.0.0.1:8889');
-    }
+    // 使用 StorageService 统一处理 URL
+    final fixedUrl = StorageService().fixMediaUrl(url);
     
     return Scaffold(
       backgroundColor: Colors.black,

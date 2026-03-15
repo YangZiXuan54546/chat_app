@@ -90,19 +90,16 @@ class ChatService extends ChangeNotifier {
   
   int get currentUserId => _currentUser?.userId ?? 0;
 
-  // 媒体服务器地址（用于替换服务器返回的localhost URL）
-  String _mediaServerHost = "127.0.0.1:8889"; // 本地服务器
+  // 媒体服务器地址（从 StorageService 获取）
+  String get _mediaServerHost => StorageService().mediaServerHost;
   
   void setMediaServerHost(String host) {
-    _mediaServerHost = host;
+    // 已废弃，现在使用 StorageService 管理
   }
   
   // 替换URL中的localhost为实际的媒体服务器地址
-  String _fixMediaUrl(String url) {
-    if (url.contains("localhost")) {
-      return url.replaceFirst(RegExp(r"http://localhost:\d+"), "http://$_mediaServerHost");
-    }
-    return url;
+  String fixMediaUrl(String url) {
+    return StorageService().fixMediaUrl(url);
   }
 
   // 重连状态
@@ -1490,7 +1487,7 @@ class ChatService extends ChangeNotifier {
         _uploadedFileId = data['file_id'] as int?;
         // 替换localhost为实际的媒体服务器地址
         final rawUrl = data['url'] as String?;
-        _uploadedMediaUrl = rawUrl != null ? _fixMediaUrl(rawUrl) : null;
+        _uploadedMediaUrl = rawUrl != null ? fixMediaUrl(rawUrl) : null;
         _uploadError = null;
         debugPrint('Media uploaded successfully: $_uploadedMediaUrl');
       }
