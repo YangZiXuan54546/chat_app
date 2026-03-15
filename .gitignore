@@ -13,6 +13,8 @@ client/chat_app/build/
 .flutter-plugins
 .flutter-plugins-dependencies
 *.lock
+.metadata
+GeneratedPluginRegistrant.java
 
 # Logs
 *.log
