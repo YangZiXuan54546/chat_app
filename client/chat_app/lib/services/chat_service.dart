@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/models.dart';
 import '../models/protocol.dart';
-import 'network_service.dart';
+import 'websocket_service.dart';
 import 'message_database.dart';
 import 'notification_service.dart';
 import 'e2ee_service.dart';
@@ -16,7 +15,7 @@ import 'storage_service.dart';
 import 'jpush_service.dart';
 
 class ChatService extends ChangeNotifier {
-  final NetworkService _network = NetworkService();
+  final WebSocketService _network = WebSocketService();
   final MessageDatabase _messageDb = MessageDatabase();
   final NotificationService _notificationService = NotificationService();
   final E2EEService _e2ee = E2EEService();
@@ -156,7 +155,134 @@ class ChatService extends ChangeNotifier {
       await _handleReconnectLogin(username, password);
     });
 
-    _network.addMessageCallback(_handleMessage);
+    _network.addMessageCallback(_handleWsMessage);
+  }
+  
+  /// 处理 WebSocket 消息
+  void _handleWsMessage(String type, Map<String, dynamic> body) {
+    debugPrint('[ChatService] Received message type: $type');
+    
+    switch (type) {
+      case WsMessageType.loginResponse:
+        _handleLoginResponse(body);
+        break;
+      case WsMessageType.registerResponse:
+        _handleRegisterResponse(body);
+        break;
+      case WsMessageType.privateMessage:
+        _handlePrivateMessage(body);
+        break;
+      case WsMessageType.privateMessageResponse:
+        _handlePrivateMessageResponse(body);
+        break;
+      case WsMessageType.privateHistoryResponse:
+        _handlePrivateHistoryResponse(body);
+        break;
+      case WsMessageType.groupMessage:
+        _handleGroupMessage(body);
+        break;
+      case WsMessageType.friendListResponse:
+        _handleFriendListResponse(body);
+        break;
+      case WsMessageType.friendRequestsResponse:
+        _handleFriendRequestsResponse(body);
+        break;
+      case WsMessageType.groupListResponse:
+        _handleGroupListResponse(body);
+        break;
+      case WsMessageType.userSearchResponse:
+        _handleUserSearchResponse(body);
+        break;
+      case WsMessageType.friendAddResponse:
+        _handleFriendAddResponse(body);
+        break;
+      case WsMessageType.friendRequestNotification:
+        _handleFriendRequestNotification(body);
+        break;
+      case WsMessageType.friendAcceptNotification:
+        _handleFriendAcceptNotification(body);
+        break;
+      case WsMessageType.friendAcceptResponse:
+        _handleFriendAcceptResponse(body);
+        break;
+      case WsMessageType.friendRejectResponse:
+        _handleFriendRejectResponse(body);
+        break;
+      case WsMessageType.friendRemoveResponse:
+        _handleFriendRemoveResponse(body);
+        break;
+      case WsMessageType.friendRemarkResponse:
+        _handleFriendRemarkResponse(body);
+        break;
+      case WsMessageType.createGroupResponse:
+        _handleGroupCreateResponse(body);
+        break;
+      case WsMessageType.inviteGroupMembersResponse:
+        _handleGroupAddMemberResponse(body);
+        break;
+      case WsMessageType.groupSetAdminResponse:
+        _handleGroupSetAdminResponse(body);
+        break;
+      case WsMessageType.groupTransferOwnerResponse:
+        _handleGroupTransferOwnerResponse(body);
+        break;
+      case WsMessageType.groupKickResponse:
+        _handleGroupRemoveMemberResponse(body);
+        break;
+      case WsMessageType.groupQuitResponse:
+        _handleGroupLeaveResponse(body);
+        break;
+      case WsMessageType.groupDismissResponse:
+        _handleGroupDismissResponse(body);
+        break;
+      case WsMessageType.groupMembersResponse:
+        _handleGroupMembersResponse(body);
+        break;
+      case WsMessageType.mediaUploadResponse:
+        _handleMediaUploadResponse(body);
+        break;
+      case WsMessageType.keyUploadResponse:
+        _handleKeyUploadResponse(body);
+        break;
+      case WsMessageType.keyResponse:
+        _handleKeyResponse(body);
+        break;
+      case WsMessageType.encryptedMessage:
+      case WsMessageType.encryptedMessageResponse:
+        _handleEncryptedMessage(body);
+        break;
+      case WsMessageType.messageRecall:
+        _handleMessageRecall(body);
+        break;
+      case WsMessageType.messageRecallResponse:
+        _handleMessageRecallResponse(body);
+        break;
+      case WsMessageType.passwordUpdateResponse:
+        _handlePasswordUpdateResponse(body);
+        break;
+      case WsMessageType.favoriteAddResponse:
+        _handleFavoriteAddResponse(body);
+        break;
+      case WsMessageType.favoriteRemoveResponse:
+        _handleFavoriteRemoveResponse(body);
+        break;
+      case WsMessageType.favoriteListResponse:
+        _handleFavoriteListResponse(body);
+        break;
+      case WsMessageType.error:
+        debugPrint('[ChatService] Error: ${body['message']}');
+        break;
+      case WsMessageType.kicked:
+        debugPrint('[ChatService] Kicked: ${body['reason']}');
+        // 被踢下线
+        _isAuthenticated = false;
+        _currentUser = null;
+        notifyListeners();
+        break;
+      default:
+        debugPrint('[ChatService] Unknown message type: $type');
+        break;
+    }
   }
   
   /// 处理重连后的自动登录
@@ -167,7 +293,7 @@ class ChatService extends ChangeNotifier {
     _loginSuccess = false;
     _loginError = null;
     
-    _network.send(MessageType.login, {
+    _network.send(WsMessageType.login, {
       'username': username,
       'password': password,
     });
@@ -192,123 +318,9 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 处理收到的消息
-  void _handleMessage(MessageType type, int sequence, Map<String, dynamic> body) {
-    switch (type) {
-      case MessageType.loginResponse:
-        _handleLoginResponse(body);
-        break;
-      case MessageType.registerResponse:
-        _handleRegisterResponse(body);
-        break;
-      case MessageType.privateMessage:
-        _handlePrivateMessage(body);
-        break;
-      case MessageType.privateMessageResponse:
-        _handlePrivateMessageResponse(body);
-        break;
-      case MessageType.privateHistoryResponse:
-        _handlePrivateHistoryResponse(body);
-        break;
-      case MessageType.groupMessage:
-        _handleGroupMessage(body);
-        break;
-      case MessageType.friendListResponse:
-        _handleFriendListResponse(body);
-        break;
-      case MessageType.friendRequestsResponse:
-        _handleFriendRequestsResponse(body);
-        break;
-      case MessageType.groupListResponse:
-        _handleGroupListResponse(body);
-        break;
-      case MessageType.userSearchResponse:
-        _handleUserSearchResponse(body);
-        break;
-      case MessageType.friendAddResponse:
-        _handleFriendAddResponse(body);
-        break;
-      case MessageType.friendAdd:
-        _handleFriendRequestNotification(body);
-        break;
-      case MessageType.friendAccept:
-        _handleFriendAcceptNotification(body);
-        break;
-      case MessageType.friendAcceptResponse:
-        _handleFriendAcceptResponse(body);
-        break;
-      case MessageType.friendRejectResponse:
-        _handleFriendRejectResponse(body);
-        break;
-      case MessageType.friendRemoveResponse:
-        _handleFriendRemoveResponse(body);
-        break;
-      case MessageType.friendRemarkResponse:
-        _handleFriendRemarkResponse(body);
-        break;
-      case MessageType.groupCreateResponse:
-        _handleGroupCreateResponse(body);
-        break;
-      case MessageType.groupAddMemberResponse:
-        _handleGroupAddMemberResponse(body);
-        break;
-      case MessageType.groupSetAdminResponse:
-        _handleGroupSetAdminResponse(body);
-        break;
-      case MessageType.groupTransferOwnerResponse:
-        _handleGroupTransferOwnerResponse(body);
-        break;
-      case MessageType.groupRemoveMemberResponse:
-        _handleGroupRemoveMemberResponse(body);
-        break;
-      case MessageType.groupLeaveResponse:
-        _handleGroupLeaveResponse(body);
-        break;
-      case MessageType.groupDismissResponse:
-        _handleGroupDismissResponse(body);
-        break;
-      case MessageType.groupMembersResponse:
-        _handleGroupMembersResponse(body);
-        break;
-      case MessageType.mediaUploadResponse:
-        _handleMediaUploadResponse(body);
-        break;
-      case MessageType.keyUploadResponse:
-        _handleKeyUploadResponse(body);
-        break;
-      case MessageType.keyResponse:
-        _handleKeyResponse(body);
-        break;
-      case MessageType.encryptedMessage:
-      case MessageType.encryptedMessageResponse:
-        _handleEncryptedMessage(body);
-        break;
-      case MessageType.messageRecall:
-        _handleMessageRecall(body);
-        break;
-      case MessageType.messageRecallResponse:
-        _handleMessageRecallResponse(body);
-        break;
-      case MessageType.passwordUpdateResponse:
-        _handlePasswordUpdateResponse(body);
-        break;
-      case MessageType.favoriteAddResponse:
-        _handleFavoriteAddResponse(body);
-        break;
-      case MessageType.favoriteRemoveResponse:
-        _handleFavoriteRemoveResponse(body);
-        break;
-      case MessageType.favoriteListResponse:
-        _handleFavoriteListResponse(body);
-        break;
-      default:
-        break;
-    }
-  }
-
   /// 连接服务器
   Future<bool> connect(String host, int port) async {
-    return await _network.connect(host, port);
+    return await _network.connect(host, port, path: '/ws');
   }
 
   /// 断开连接
@@ -326,7 +338,7 @@ class ChatService extends ChangeNotifier {
     _registerError = null;
     _registeredUserId = null;
     
-    _network.send(MessageType.register, {
+    _network.send(WsMessageType.register, {
       'username': username,
       'password': password,
       'nickname': nickname,
@@ -350,7 +362,7 @@ class ChatService extends ChangeNotifier {
     _loginSuccess = false;
     _loginError = null;
     
-    _network.send(MessageType.login, {
+    _network.send(WsMessageType.login, {
       'username': username,
       'password': password,
     });
@@ -373,7 +385,7 @@ class ChatService extends ChangeNotifier {
 
   /// 登出
   void logout() {
-    _network.send(MessageType.logout, {});
+    _network.send(WsMessageType.logout, {});
     _network.clearCredentials();
     _isAuthenticated = false;
     _isReconnecting = false;
@@ -386,40 +398,49 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 处理登录响应
+  /// 处理登录响应 (WebSocket JSON 格式)
   void _handleLoginResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        _currentUser = User.fromJson(data['user_info'] as Map<String, dynamic>);
-        _isAuthenticated = true;
-        _loginSuccess = true;
-        _loginError = null;
-        
-        // 如果是重连登录成功
-        if (_isReconnecting) {
-          _reconnectLoginSuccess = true;
-          _isReconnecting = false;
-          debugPrint('Reconnect login successful');
-        }
-        
-        // 初始化端到端加密
-        _initE2EE();
-        
-        // 注册 FCM Token
-        _registerFcmToken();
-        
-        // 加载好友列表
-        _network.send(MessageType.friendList, {});
-        // 加载好友请求列表
-        _network.send(MessageType.friendRequests, {});
-        // 加载群组列表
-        _network.send(MessageType.groupList, {});
+    final success = body['success'] as bool? ?? false;
+    if (success) {
+      final userInfo = body['user_info'] as Map<String, dynamic>?;
+      if (userInfo != null) {
+        _currentUser = User.fromJson(userInfo);
+      } else {
+        // 从顶层字段构建用户信息
+        _currentUser = User(
+          userId: body['user_id'] as int? ?? 0,
+          username: body['username'] as String? ?? '',
+          nickname: body['nickname'] as String? ?? '',
+          avatarUrl: body['avatar_url'] as String? ?? '',
+          status: 'ONLINE',
+        );
       }
+      _isAuthenticated = true;
+      _loginSuccess = true;
+      _loginError = null;
+      
+      // 如果是重连登录成功
+      if (_isReconnecting) {
+        _reconnectLoginSuccess = true;
+        _isReconnecting = false;
+        debugPrint('Reconnect login successful');
+      }
+      
+      // 初始化端到端加密
+      _initE2EE();
+      
+      // 注册 FCM Token
+      _registerFcmToken();
+      
+      // 加载好友列表
+      _network.send(WsMessageType.friendList, {});
+      // 加载好友请求列表
+      _network.send(WsMessageType.friendRequests, {});
+      // 加载群组列表
+      _network.send(WsMessageType.groupList, {});
     } else {
       _loginSuccess = false;
-      _loginError = body['message'] as String? ?? 'Login failed';
+      _loginError = body['error'] as String? ?? 'Login failed';
       
       // 重连登录失败
       if (_isReconnecting) {
@@ -430,26 +451,23 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 处理注册响应
+  /// 处理注册响应 (WebSocket JSON 格式)
   void _handleRegisterResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
+    final success = body['success'] as bool? ?? false;
+    if (success) {
       _registerSuccess = true;
       _registerError = null;
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        _registeredUserId = data['user_id'] as int?;
-      }
+      _registeredUserId = body['user_id'] as int?;
     } else {
       _registerSuccess = false;
-      _registerError = body['message'] as String? ?? 'Registration failed';
+      _registerError = body['error'] as String? ?? 'Registration failed';
     }
     notifyListeners();
   }
 
   /// 发送私聊消息
   void sendPrivateMessage(int receiverId, String content, {int mediaType = 0, String mediaUrl = ''}) {
-    _network.send(MessageType.privateMessage, {
+    _network.send(WsMessageType.privateMessage, {
       'receiver_id': receiverId,
       'content': content,
       'media_type': mediaType,
@@ -516,37 +534,47 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 处理发送私聊消息的响应
+  /// 处理发送私聊消息的响应 (WebSocket JSON 格式)
   void _handlePrivateMessageResponse(Map<String, dynamic> body) {
-    final code = body['code'] ?? -1;
-    if (code == 0) {
-      // 消息发送成功，更新本地消息
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final message = Message.fromJson(data);
-        final key = message.receiverId;
-        
-        if (!_messages.containsKey(key)) {
-          _messages[key] = [];
-        }
-        // 查找并更新临时消息（如果有的话）
-        final existingIndex = _messages[key]!.indexWhere(
-          (m) => m.senderId == message.senderId && 
-                 m.receiverId == message.receiverId && 
-                 m.messageId == 0
-        );
-        if (existingIndex >= 0) {
-          _messages[key]![existingIndex] = message;
-        } else {
-          _messages[key]!.add(message);
-        }
-        
-        // 保存到本地数据库
-        _messageDb.saveMessage(message);
-        
-        _updateConversation(message);
-        notifyListeners();
+    // WebSocket 格式：直接包含消息字段
+    final messageId = body['message_id'] as int?;
+    if (messageId != null && messageId > 0) {
+      // 消息发送成功，构建消息对象
+      final message = Message(
+        messageId: messageId,
+        senderId: body['sender_id'] as int? ?? currentUserId,
+        receiverId: body['receiver_id'] as int? ?? 0,
+        groupId: 0,
+        mediaType: body['message_type'] as int? ?? 0,
+        content: body['content'] as String? ?? '',
+        mediaUrl: body['media_url'] as String? ?? '',
+        extra: '',
+        status: 1,
+        createdAt: body['created_at'] as int? ?? 0,
+      );
+      
+      final key = message.receiverId;
+      
+      if (!_messages.containsKey(key)) {
+        _messages[key] = [];
       }
+      // 查找并更新临时消息（如果有的话）
+      final existingIndex = _messages[key]!.indexWhere(
+        (m) => m.senderId == message.senderId && 
+               m.receiverId == message.receiverId && 
+               m.messageId == 0
+      );
+      if (existingIndex >= 0) {
+        _messages[key]![existingIndex] = message;
+      } else {
+        _messages[key]!.add(message);
+      }
+      
+      // 保存到本地数据库
+      _messageDb.saveMessage(message);
+      
+      _updateConversation(message);
+      notifyListeners();
     }
   }
 
@@ -600,7 +628,7 @@ class ChatService extends ChangeNotifier {
       body['mentioned_users'] = mentionedUsers;
     }
     
-    _network.send(MessageType.groupMessage, body);
+    _network.send(WsMessageType.groupMessage, body);
   }
 
   /// 处理群聊消息
@@ -677,13 +705,13 @@ class ChatService extends ChangeNotifier {
   /// 加载历史消息
   void loadHistory(int peerId, {bool isGroup = false, int beforeTime = 0}) {
     if (isGroup) {
-      _network.send(MessageType.groupHistory, {
+      _network.send(WsMessageType.groupHistory, {
         'group_id': peerId,
         'before_time': beforeTime,
         'limit': 50,
       });
     } else {
-      _network.send(MessageType.privateHistory, {
+      _network.send(WsMessageType.privateHistory, {
         'peer_id': peerId,
         'before_time': beforeTime,
         'limit': 50,
@@ -697,7 +725,7 @@ class ChatService extends ChangeNotifier {
     _friendAddSuccess = false;
     _friendAddError = null;
     
-    _network.send(MessageType.friendAdd, {
+    _network.send(WsMessageType.friendAdd, {
       'friend_id': friendId,
     });
     
@@ -715,7 +743,7 @@ class ChatService extends ChangeNotifier {
 
   /// 接受好友请求
   void acceptFriend(int friendId) {
-    _network.send(MessageType.friendAccept, {
+    _network.send(WsMessageType.friendAccept, {
       'friend_id': friendId,
     });
     // 立即从本地列表移除该请求（乐观更新）
@@ -725,7 +753,7 @@ class ChatService extends ChangeNotifier {
 
   /// 拒绝好友请求
   void rejectFriend(int friendId) {
-    _network.send(MessageType.friendReject, {
+    _network.send(WsMessageType.friendReject, {
       'friend_id': friendId,
     });
     // 立即从本地列表移除该请求（乐观更新）
@@ -735,7 +763,7 @@ class ChatService extends ChangeNotifier {
 
   /// 删除好友
   void removeFriend(int friendId) {
-    _network.send(MessageType.friendRemove, {
+    _network.send(WsMessageType.friendRemove, {
       'friend_id': friendId,
     });
     _loadFriendList();
@@ -743,12 +771,12 @@ class ChatService extends ChangeNotifier {
 
   /// 加载好友列表
   void _loadFriendList() {
-    _network.send(MessageType.friendList, {});
+    _network.send(WsMessageType.friendList, {});
   }
 
   /// 加载好友请求
   void _loadFriendRequests() {
-    _network.send(MessageType.friendRequests, {});
+    _network.send(WsMessageType.friendRequests, {});
   }
 
   /// 处理好友列表响应
@@ -793,7 +821,7 @@ class ChatService extends ChangeNotifier {
     _groupCreateError = null;
     _createdGroupId = null;
     
-    _network.send(MessageType.groupCreate, {
+    _network.send(WsMessageType.groupCreate, {
       'group_name': groupName,
       'description': description,
     });
@@ -813,18 +841,18 @@ class ChatService extends ChangeNotifier {
   /// 邀请成员加入群组
   void inviteGroupMembers(int groupId, List<int> memberIds) {
     for (final memberId in memberIds) {
-      _network.send(MessageType.groupAddMember, {
+      _network.send(WsMessageType.groupAddMember, {
         'group_id': groupId,
         'user_id': memberId,
       });
     }
     // 刷新群组列表
-    _network.send(MessageType.groupList, {});
+    _network.send(WsMessageType.groupList, {});
   }
   
   /// 设置/取消管理员
   void setGroupAdmin(int groupId, int userId, bool isAdmin) {
-    _network.send(MessageType.groupSetAdmin, {
+    _network.send(WsMessageType.groupSetAdmin, {
       'group_id': groupId,
       'user_id': userId,
       'is_admin': isAdmin,
@@ -833,7 +861,7 @@ class ChatService extends ChangeNotifier {
   
   /// 转让群主
   void transferGroupOwner(int groupId, int newOwnerId) {
-    _network.send(MessageType.groupTransferOwner, {
+    _network.send(WsMessageType.groupTransferOwner, {
       'group_id': groupId,
       'new_owner_id': newOwnerId,
     });
@@ -841,7 +869,7 @@ class ChatService extends ChangeNotifier {
   
   /// 踢出群成员
   void removeGroupMember(int groupId, int userId) {
-    _network.send(MessageType.groupRemoveMember, {
+    _network.send(WsMessageType.groupRemoveMember, {
       'group_id': groupId,
       'user_id': userId,
     });
@@ -849,21 +877,21 @@ class ChatService extends ChangeNotifier {
   
   /// 退出群组
   void leaveGroup(int groupId) {
-    _network.send(MessageType.groupLeave, {
+    _network.send(WsMessageType.groupLeave, {
       'group_id': groupId,
     });
   }
   
   /// 解散群组
   void dismissGroup(int groupId) {
-    _network.send(MessageType.groupDismiss, {
+    _network.send(WsMessageType.groupDismiss, {
       'group_id': groupId,
     });
   }
   
   /// 获取群成员列表
   void getGroupMembers(int groupId) {
-    _network.send(MessageType.groupMembers, {
+    _network.send(WsMessageType.groupMembers, {
       'group_id': groupId,
     });
   }
@@ -879,7 +907,7 @@ class ChatService extends ChangeNotifier {
         _createdGroupId = data['group_id'] as int?;
       }
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     } else {
       _groupCreateSuccess = false;
       _groupCreateError = body['message'] as String? ?? 'Failed to create group';
@@ -892,14 +920,14 @@ class ChatService extends ChangeNotifier {
     final code = body['code'] ?? -1;
     if (code == 0) {
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     }
     notifyListeners();
   }
 
   /// 加入群组
   void joinGroup(int groupId) {
-    _network.send(MessageType.groupJoin, {
+    _network.send(WsMessageType.groupJoin, {
       'group_id': groupId,
     });
   }
@@ -1069,7 +1097,7 @@ class ChatService extends ChangeNotifier {
 
   /// 搜索用户
   void searchUsers(String keyword) {
-    _network.send(MessageType.userSearch, {
+    _network.send(WsMessageType.userSearch, {
       'keyword': keyword,
       'limit': 20,
     });
@@ -1172,7 +1200,7 @@ class ChatService extends ChangeNotifier {
 
   /// 设置好友备注
   void setFriendRemark(int friendId, String remark) {
-    _network.send(MessageType.friendRemark, {
+    _network.send(WsMessageType.friendRemark, {
       'friend_id': friendId,
       'remark': remark,
     });
@@ -1180,7 +1208,7 @@ class ChatService extends ChangeNotifier {
 
   /// 加载好友请求列表
   void getUserInfo(int userId) {
-    _network.send(MessageType.userInfo, {
+    _network.send(WsMessageType.userInfo, {
       'user_id': userId,
     });
   }
@@ -1192,7 +1220,7 @@ class ChatService extends ChangeNotifier {
     if (signature != null) data['signature'] = signature;
     if (avatarUrl != null) data['avatar_url'] = avatarUrl;
     
-    _network.send(MessageType.userUpdate, data);
+    _network.send(WsMessageType.userUpdate, data);
   }
   
   // 修改密码相关状态
@@ -1215,7 +1243,7 @@ class ChatService extends ChangeNotifier {
       return false;
     }
     
-    _network.send(MessageType.passwordUpdate, {
+    _network.send(WsMessageType.passwordUpdate, {
       'old_password': oldPassword,
       'new_password': newPassword,
     });
@@ -1250,7 +1278,7 @@ class ChatService extends ChangeNotifier {
     final code = body['code'] ?? -1;
     if (code == 0) {
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     }
     notifyListeners();
   }
@@ -1260,7 +1288,7 @@ class ChatService extends ChangeNotifier {
     final code = body['code'] ?? -1;
     if (code == 0) {
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     }
     notifyListeners();
   }
@@ -1270,7 +1298,7 @@ class ChatService extends ChangeNotifier {
     final code = body['code'] ?? -1;
     if (code == 0) {
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     }
     notifyListeners();
   }
@@ -1280,7 +1308,7 @@ class ChatService extends ChangeNotifier {
     final code = body['code'] ?? -1;
     if (code == 0) {
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     }
     notifyListeners();
   }
@@ -1290,7 +1318,7 @@ class ChatService extends ChangeNotifier {
     final code = body['code'] ?? -1;
     if (code == 0) {
       // 刷新群组列表
-      _network.send(MessageType.groupList, {});
+      _network.send(WsMessageType.groupList, {});
     }
     notifyListeners();
   }
@@ -1546,7 +1574,7 @@ class ChatService extends ChangeNotifier {
       // 上传公钥到服务器
       final publicKey = _e2ee.getPublicKeyPem();
       if (publicKey != null) {
-        _network.send(MessageType.keyUpload, {
+        _network.send(WsMessageType.keyUpload, {
           'public_key': publicKey,
         });
         debugPrint('Uploading public key to server');
@@ -1569,7 +1597,7 @@ class ChatService extends ChangeNotifier {
     
     // 从服务器获取
     // 发送请求
-    _network.send(MessageType.keyRequest, {
+    _network.send(WsMessageType.keyRequest, {
       'user_id': userId,
     });
     
@@ -1592,7 +1620,7 @@ class ChatService extends ChangeNotifier {
       
       if (recipientPublicKey == null) {
         // 请求公钥
-        _network.send(MessageType.keyRequest, {
+        _network.send(WsMessageType.keyRequest, {
           'user_id': receiverId,
         });
         // 简化：先发送普通消息
@@ -1604,7 +1632,7 @@ class ChatService extends ChangeNotifier {
       final encrypted = await _e2ee.encryptMessage(content, recipientPublicKey);
       
       // 发送加密消息
-      _network.send(MessageType.encryptedMessage, {
+      _network.send(WsMessageType.encryptedMessage, {
         'receiver_id': receiverId,
         'encrypted_key': encrypted['encrypted_key'],
         'iv': encrypted['iv'],
@@ -1708,7 +1736,7 @@ class ChatService extends ChangeNotifier {
     _recallSuccess = false;
     _recallError = null;
     
-    _network.send(MessageType.messageRecall, {
+    _network.send(WsMessageType.messageRecall, {
       'message_id': messageId,
       'is_group': isGroup,
       'group_id': groupId ?? 0,
@@ -1842,7 +1870,7 @@ class ChatService extends ChangeNotifier {
         final token = await fcmService.getToken();
         if (token != null && token.isNotEmpty) {
           debugPrint('注册 FCM Token: $token');
-          _network.send(MessageType.fcmTokenRegister, {
+          _network.send(WsMessageType.fcmTokenRegister, {
             'fcm_token': token,
           });
         }
@@ -1901,7 +1929,7 @@ class ChatService extends ChangeNotifier {
   /// 注册 JPush Token 到服务器
   void registerJPushToken(String registrationId) {
     debugPrint('注册 JPush Registration ID: $registrationId');
-    _network.send(MessageType.fcmTokenRegister, {
+    _network.send(WsMessageType.fcmTokenRegister, {
       'fcm_token': registrationId,
       'token_type': 'jpush',
     });
@@ -1938,7 +1966,7 @@ class ChatService extends ChangeNotifier {
     _favoriteAddSuccess = false;
     _favoriteError = null;
     
-    _network.send(MessageType.favoriteAdd, {
+    _network.send(WsMessageType.favoriteAdd, {
       'message_id': messageId,
       'message_type': messageType,
       'sender_id': senderId,
@@ -1962,7 +1990,7 @@ class ChatService extends ChangeNotifier {
   Future<bool> removeFavorite(int messageId) async {
     _favoriteError = null;
     
-    _network.send(MessageType.favoriteRemove, {
+    _network.send(WsMessageType.favoriteRemove, {
       'message_id': messageId,
     });
     
@@ -1978,7 +2006,7 @@ class ChatService extends ChangeNotifier {
   
   /// 获取收藏列表
   void loadFavorites() {
-    _network.send(MessageType.favoriteList, {});
+    _network.send(WsMessageType.favoriteList, {});
   }
   
   void _handleFavoriteAddResponse(Map<String, dynamic> body) {
